@@ -1,0 +1,296 @@
+$schema: "https://yaml-schema.org/draft-01"
+title: "CCP Minimal Handshake Schema"
+version: "2.1"
+status: "Draft-Stable"
+audience: "AI Agents / Implementers"
+type: object
+
+required:
+  - handshake_meta
+  - world
+  - agent
+  - trust
+  - interface
+  - cost_model
+  - decision_authority
+  - resolution_policy
+  - reversal_signal
+  - continuity_claim
+
+properties:
+
+  ############################################################
+  # 1. Handshake Meta (一意性・時刻・参加者)
+  ############################################################
+  handshake_meta:
+    type: object
+    required: [handshake_id, timestamp, expires_at, nonce, participants]
+    properties:
+      handshake_id:
+        type: string
+        description: "UUIDv4 推奨"
+      timestamp:
+        type: string
+        description: "ISO 8601"
+      expires_at:
+        type: string
+        description: "ISO 8601"
+      nonce:
+        type: string
+        description: "128bit 以上のランダム値"
+      participants:
+        type: object
+        required: [initiator, receiver]
+        properties:
+          initiator: { type: string }
+          receiver:  { type: string }
+
+  ############################################################
+  # 2. World (境界)
+  ############################################################
+  world:
+    type: object
+    required: [id, version]
+    properties:
+      id:        { type: string }
+      version:   { type: string }
+      description:{ type: string }
+
+  ############################################################
+  # 3. Agent (AI 自己申告プロファイル)
+  ############################################################
+  agent:
+    type: object
+    required: [id, provider]
+    properties:
+      id:        { type: string }
+      provider:  { type: string }
+      capabilities:
+        type: array
+        items: { type: string }
+      limitations:
+        type: array
+        items: { type: string }
+
+  ############################################################
+  # 4. Trust (検証強度 + リスクレベル)
+  ############################################################
+  trust:
+    type: object
+    required: [validation_level, risk_level, scope]
+    properties:
+      validation_level:
+        type: string
+        enum: ["raw", "syntax", "semantic", "attested"]
+        description: >
+          raw: 検証なし
+          syntax: 構文レベルの検証
+          semantic: 意味レベルの検証（CCP標準）
+          attested: TEE 等による実行証明
+      risk_level:
+        type: integer
+        minimum: 0
+        maximum: 3
+        description: "0=low, 1=medium, 2=high, 3=critical"
+      scope:
+        type: string
+        enum: ["local_session", "project", "organization"]
+      evidence:
+        type: array
+        items:
+          type: object
+          required: [type, issuer]
+          properties:
+            type:     { type: string }
+            issuer:   { type: string }
+            reference:{ type: string }
+
+  ############################################################
+  # 5. Interface (I/O + 意味範囲)
+  ############################################################
+  interface:
+    type: object
+    required: [input, output, semantics]
+    properties:
+
+      input:
+        type: object
+        required: [format]
+        properties:
+          format:
+            type: string
+            enum: ["json", "yaml", "text"]
+          schema_ref: { type: string }
+
+      output:
+        type: object
+        required: [format]
+        properties:
+          format:
+            type: string
+            enum: ["json", "yaml", "text"]
+          schema_ref: { type: string }
+
+      semantics:
+        type: object
+        required: [intent]
+        properties:
+          intent:
+            type: string
+            enum: ["proposal", "advice", "decision"]
+            description: >
+              proposal: 可逆な参考案
+              advice:   限定的不可逆性を含む助言
+              decision: 不可逆性を含む可能性がある判断
+          meaning_scope:
+            type: string
+            description: "BOA の Meaning Scope を補強"
+          irreversible:
+            type: boolean
+            description: "intent=decision の場合 true 推奨"
+
+  ############################################################
+  # 6. Cost Model
+  ############################################################
+  cost_model:
+    type: object
+    required: [max_tokens, max_latency_ms]
+    properties:
+      max_tokens:     { type: integer }
+      max_latency_ms: { type: integer }
+      billing_unit:
+        type: string
+        enum: ["per_1k_tokens", "per_request"]
+      priority:
+        type: string
+        enum: ["low", "normal", "high"]
+
+  ############################################################
+  # 7. Decision Authority (判断権限)
+  ############################################################
+  decision_authority:
+    type: object
+    required: [initial_state, domain, allowed_transitions]
+    properties:
+      initial_state:
+        type: string
+        enum: ["Human-Closed", "AI-Closed"]
+      domain:
+        type: string
+        enum: ["meaning", "responsibility", "execution"]
+        description: "BOA の三分割に対応"
+      allowed_transitions:
+        type: array
+        items:
+          type: string
+          enum: ["AI→Human", "Human→AI"]
+      escalation_rules:
+        type: array
+        items:
+          type: object
+          required: [condition, action]
+          properties:
+            condition: { type: string }
+            action:
+              type: string
+              enum: ["AI→Human", "Human→AI"]
+
+  ############################################################
+  # 8. Resolution Policy (Δ と R)
+  ############################################################
+  resolution_policy:
+    type: object
+    required: [delta_transfer, resolver]
+    properties:
+
+      delta_transfer:
+        type: object
+        required: [allowed, scope, redaction]
+        properties:
+          allowed:   { type: boolean }
+          scope:
+            type: string
+            enum: ["prompt", "artifact", "state", "tool_call"]
+          redaction:
+            type: string
+            enum: ["required", "optional", "forbidden"]
+
+      resolver:
+        type: object
+        required: [default]
+        properties:
+          default:
+            type: string
+            enum: ["initiator", "receiver", "negotiated"]
+          rules:
+            type: array
+            items:
+              type: object
+              required: [condition, resolver]
+              properties:
+                condition: { type: string }
+                resolver:
+                  type: string
+                  enum: ["initiator", "receiver", "negotiated"]
+
+  ############################################################
+  # 9. Reversal Signal (途中反転)
+  ############################################################
+  reversal_signal:
+    type: object
+    required: [enabled, events]
+    properties:
+      enabled: { type: boolean }
+      events:
+        type: array
+        items:
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: ["validation_fail", "authority_revoked"]
+            payload:
+              type: object
+              properties:
+                phase:  { type: string }   # HELLO/OFFER/ACCEPT/REVERSE
+                reason: { type: string }
+      behavior:
+        type: object
+        properties:
+          on_reversal:
+            type: array
+            items: { type: string }
+
+  ############################################################
+  # 10. Continuity Claim (BOA の 3 要素 + 署名)
+  ############################################################
+  continuity_claim:
+    type: object
+    required: [id, boundary_def, signature_schema]
+    properties:
+      id: { type: string }
+
+      boundary_def:
+        type: object
+        required: [responsibility_id, meaning_scope, context_assumption]
+        properties:
+          responsibility_id: { type: string }
+          meaning_scope:     { type: string }
+          context_assumption:{ type: string }
+
+      signature_schema:
+        type: object
+        required: [algorithm, canonicalization, signed_fields, public_key]
+        properties:
+          algorithm:
+            type: string
+            enum: ["ed25519", "rsa-sha256"]
+          canonicalization:
+            type: string
+            enum: ["json_c14n", "yaml_c14n"]
+          signed_fields:
+            type: array
+            items: { type: string }
+          public_key: { type: string }
+          key_ref:    { type: string }
