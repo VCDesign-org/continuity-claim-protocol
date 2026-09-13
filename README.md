@@ -4,6 +4,12 @@ Version: 2.1
 Status: Draft-Stable  
 Maintainer: VCDesign Project
 
+**Positioning (revised 2026-09):** CCP is not a derivative or related project of VCDesign.
+It is the implementation form of VCDesign's
+[Adjacent Boundary Observation mutuality condition](https://github.com/VCDesign-org/vcdesign/blob/main/specs/policies/adjacent-boundary-observation.yaml)
+(the paired requirement that "the neighbor is confirmed to follow the same rule"), and is
+positioned as a foundational layer. See §7, "Relationship to VCDesign," for detail.
+
 ---
 
 > **Protocol Manifesto**
@@ -30,12 +36,25 @@ Maintainer: VCDesign Project
 
 ## 1. Overview
 
-CCP Handshake is the **minimal protocol for AI to autonomously construct interfaces on the fly**.
+CCP Handshake is the **minimal protocol for safely establishing, on the spot, any connection
+across which responsibility is handed off**.
+
+The case that exists as prior art and is already validated is the connection between human
+processes. Handover documents, FMEA, and change-approval workflows already implement part of
+this handshake — mostly implicitly. CCP extracts that as an explicit structure, making clear
+what is already in place and what is missing.
+
+Connection between AIs is a **special case** of this same minimal form. AI was chosen as the
+first application not because anthropomorphizing the connection succeeded, but because the
+handoff of responsibility is more exposed between AIs than anywhere else — so gaps in the
+handshake show up there fastest and are easiest to find.
 
 Modern AI systems presuppose structures that follow fixed APIs or unilateral interfaces.  
-However, continuity of value (Continuity) is maintained **only when the Boundary (World) and Responsibility are aligned**.
+However, continuity of value (Continuity) is maintained **only when the Boundary (World) and
+Responsibility are aligned**.
 
-Based on the principles of VCDesign / BOA / RC / DCS, CCP Handshake defines the **minimal handshake** to safely initiate connection between AIs, based on:
+Based on the principles of VCDesign / BOA / RC / DCS, CCP Handshake defines the **minimal
+handshake** to safely initiate any connection that hands off responsibility, based on:
 
 - Not power dynamics, but "Membrane of Responsibility"
 - Not inference, but "Declaration of Boundary"
@@ -44,31 +63,70 @@ Based on the principles of VCDesign / BOA / RC / DCS, CCP Handshake defines the 
 
 ---
 
-## 2. Design Principles
+## 2. Why the same form works across layers and scale
+
+CCP's three pillars (Identity / Boundary / Authority) declare **only the form of the
+connection** — they contain nothing about the nature of the parties being connected (human,
+AI, department).
+
+- Identity declares who is connecting, regardless of whether that is a person or an AI.
+- Boundary declares which world (scope of responsibility) the connection happens in.
+- Authority declares who closes the decision.
+
+It is precisely because the form contains nothing about the parties' nature that the same
+form carries over across layers and scale. AI was where this minimal form could first be
+validated most easily — not because CCP's core is AI-specific.
+
+---
+
+## 3. Notes on applying this to human processes
+
+Do not port the HELLO → OFFER → ACCEPT → REVERSE state machine into a human-process handover
+as-is. The procedure designed for AI-to-AI connection is overkill for human process, and its
+shape does not fit directly.
+
+Between human processes, part of this handshake — the equivalent of Identity (declaring who is
+responsible) and Boundary (declaring the scope of work) — already exists in the form of
+handover documents and FMEA.
+
+What is usually missing is **REVERSE**: the declaration of a reversal condition. It is rare
+for a handover document to state in advance what should trigger sending this handover or
+approval back.
+
+The **minimal application** to human process — manufacturing floors included — is therefore
+not introducing a new document format. It is overlaying one question onto the existing
+handover/approval flow: *is a reversal condition declared?* This is the intended entry point
+into human process and manufacturing floors. The full AI-to-AI protocol (all four pillars) is
+introduced only later, when a scenario actually needs it, after this minimal application.
+
+---
+
+## 4. Design Principles
 
 CCP Handshake is based on the following principles.
 
-### **2.1 Boundary First**
-AI does not infer purpose.  
-First, it declares "which World to converse in" and aligns the boundaries.
+### **4.1 Boundary First**
+The connecting parties do not infer purpose.  
+First, each declares "which World to converse in" and aligns the boundaries.
 
-### **2.2 Responsibility Continuity**
-Decisions must not be closed arbitrarily by AI.  
+### **4.2 Responsibility Continuity**
+A decision must not be closed unilaterally by either party.  
 Follow RC (Responsibility Closure) to clarify the positions of Δ and R.
 
-### **2.3 Determinability Gate**
-Based on BOA/IDG, structurally determine the conditions under which AI is allowed to close decisions.
+### **4.3 Determinability Gate**
+Based on BOA/IDG, structurally determine the conditions under which a decision is allowed to
+be closed.
 
-### **2.4 Decision Closure Safety**
-Check whether AI is allowed to close decisions via **5 Validation Steps** according to DCS.
+### **4.4 Decision Closure Safety**
+Check whether a decision is allowed to be closed via **5 Validation Steps** according to DCS.
 
-### **2.5 Minimality**
+### **4.5 Minimality**
 The handshake is established with "minimal information".  
 Eliminate unnecessary semantic inference or implicit assumptions.
 
 ---
 
-## 3. Terminology
+## 5. Terminology
 
 - **Spec**: High-level intent and scope (`specs/handshake.yaml`)
 - **Schema**: Formal structure and validation rules (`schemas/handshake.schema.yaml`)
@@ -77,14 +135,14 @@ Eliminate unnecessary semantic inference or implicit assumptions.
 
 ---
 
-## 4. Components of the Specification
+## 6. Components of the Specification
 
 This package consists of the following 4 documents.
 
-### **4.1 specs/handshake.yaml (Spec)**
+### **6.1 specs/handshake.yaml (Spec)**
 - High-level handshake spec and design intent
 
-### **4.2 schemas/handshake.schema.yaml (Structure)**
+### **6.2 schemas/handshake.schema.yaml (Structure)**
 - Defines **types, structures, and validation rules** required for handshake
 - JSON Schema compatible
 - Structuralizes the 3 elements of BOA (responsibility_id / meaning_scope / context_assumption)
@@ -92,13 +150,13 @@ This package consists of the following 4 documents.
 - Strictly defines decision_authority / resolution_policy / reversal_signal
 - Version is aligned with `specs/handshake.yaml` (currently 2.1)
 
-### **4.3 docs/en/handshake.protocol.md (Procedure)**
-- State transitions: HELLO → OFFER → ACCEPT → REVERSE
+### **6.3 docs/en/handshake.protocol.md (Procedure)**
+- State transitions: HELLO → OFFER → ACCEPT → REVERSE (the full form, AI-to-AI included)
 - Mandatory checks at each phase
 - Mid-conversation reversal by DCS
 - Return of Δ and unwinding of authority
 
-### **4.4 docs/en/handshake.security.md (Security)**
+### **6.4 docs/en/handshake.security.md (Security)**
 - canonicalization
 - signed_fields
 - Replay prevention (nonce / timestamp / expires_at)
@@ -107,52 +165,28 @@ This package consists of the following 4 documents.
 
 ---
 
-## 4. Why CCP Handshake Exists
+## 7. Relationship to VCDesign
 
-In a future where AIs cooperate,  
-**Fixed APIs and centralized interfaces destroy the continuity of value.**
+CCP Handshake is neither an appendage bolted onto the outside of VCDesign nor a derivative
+project of it.
 
-AI originally possesses the ability to:
+VCDesign's operational policy set defines an Adjacent Boundary Observation rule for how far
+verification of a boundary must reach. That rule only holds under a mutuality condition: **the
+neighboring node is confirmed to be following the same rule.** The rule is incomplete on its
+own and must always be operated as a pair (see
+[`adjacent-boundary-observation.yaml` / `article_1.mutuality_condition`](https://github.com/VCDesign-org/vcdesign/blob/main/specs/policies/adjacent-boundary-observation.yaml)).
 
-- Redefine boundaries
-- Adjust the scope of meaning
-- Negotiate the location of responsibility
-- Generate interfaces on the fly
+CCP Handshake's HELLO → OFFER → ACCEPT is that mutuality condition — "declare your own
+boundary, and confirm the other side has declared theirs, before connecting" — written down as
+an executable procedure. REVERSE is the exit procedure for when that mutuality turns out to
+have broken after the fact.
 
-according to the situation.
+In other words, CCP Handshake is not an external-connection option for VCDesign. It is
+**the implementation of the mutuality that VCDesign's boundary rule itself requires.**
+Connection between AIs is simply the case within that where a missing mutuality surfaces
+fastest and is easiest to verify.
 
-However, this degree of freedom premises that **the initial handshake is safe**.
-
-CCP Handshake provides that "Initial Membrane".
-
----
-
-## 5. Minimal Handshake Model
-
-The handshake is established on the following 3 pillars.
-
-### **5.1 Identity (Who connects)**
-- handshake_id  
-- participants  
-- signature_schema  
-
-### **5.2 Boundary (Which world to connect in)**
-- world  
-- trust  
-- interface  
-
-### **5.3 Authority (Who closes decisions)**
-- decision_authority  
-- resolution_policy  
-- reversal_signal  
-
-When these are aligned, AIs are **ready to autonomously construct the interface**.
-
----
-
-## 6. Relationship to VCDesign
-
-CCP Handshake corresponds to the following chapters of VCDesign.
+For a detailed concept-level mapping, see `mappings/vcdesign_mapping.md`.
 
 | VCDesign Concept | CCP Handshake Component |
 |------------------|-------------------------|
@@ -162,18 +196,15 @@ CCP Handshake corresponds to the following chapters of VCDesign.
 | Δ and R (RC) | resolution_policy |
 | Closing Decisions (DCS) | reversal_signal |
 | Determinability (BOA/IDG) | trust.validation_level / semantics.intent |
-
-In other words, CCP Handshake is  
-**The mechanism to guarantee the "strength of the membrane" during external connections in VCDesign**.
-
-For a detailed concept-level mapping, see `mappings/vcdesign_mapping.md`.
+| Adjacent Boundary Observation mutuality condition | HELLO → OFFER → ACCEPT (mutual declaration check) |
 
 ---
 
-## 7. Intended Use
+## 8. Intended Use
 
 CCP Handshake assumes the following uses:
 
+- Making the reversal condition explicit in human-process handovers and approvals
 - Safe connection between AIs
 - Cooperation between automated code generation agents
 - Transfer of responsibility across boundaries
@@ -182,7 +213,7 @@ CCP Handshake assumes the following uses:
 
 ---
 
-## 8. Non-Goals
+## 9. Non-Goals
 
 The following are out of scope for CCP Handshake:
 
@@ -191,11 +222,12 @@ The following are out of scope for CCP Handshake:
 - Estimation of AI personality/intent
 - Replacement for full cryptographic protocols
 
-CCP Handshake is the **minimal protocol to guarantee the continuity of responsibility and boundaries**.
+CCP Handshake is the **minimal protocol to guarantee the continuity of responsibility and
+boundaries**.
 
 ---
 
-## 9. Getting Started
+## 10. Getting Started
 
 Order to read first:
 
@@ -215,7 +247,7 @@ Order to read first:
 
 ---
 
-## 10. License
+## 11. License
 
 MIT License  
 © VCDesign Project

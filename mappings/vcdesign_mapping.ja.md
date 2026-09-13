@@ -1,19 +1,23 @@
 # CCP ↔ VCDesign Integration Mapping
 Version: 1.1
 Status: Stable
-Audience: AI Agents / Implementers  
-Human‑facing: No (VCDesign Core remains unchanged)
+Audience: 本書自体は AI Agents / Implementers 向け（実装者向けの対応表であり、CCP 自体が
+AI専用というわけではない。README.ja.md §1〜§2 参照）
+Human‑facing: この対応表に限っては No（VCDesign Core は不動のまま）
 
 ---
 
 # 1. Purpose
 
-本書は、**CCP Handshake（AI同士の接続膜）** と  
-**VCDesign Core（人間のための哲学的膜）** の間に存在する  
-**概念的な対応関係（Mapping）** を定義する。
+本書は、**CCP Handshake** と **VCDesign Core** の間に存在する
+**概念的な対応関係（Mapping）** を定義する。CCP Handshake は VCDesign の
+「隣接境界観測ルール」の相互性条件の実装形であり（README.ja.md §7 参照）、
+その対象は AI 同士の接続に限らず、責任の受け渡しを伴うあらゆる接続である。
+本書自体は、CCP のフィールドと VCDesign の概念を結びつける実装者向けの
+現場向けリファレンスにすぎない。
 
 VCDesign Core は不動であり、  
-本書は CCP 側にのみ置かれる“外部接続仕様”である。
+本書は CCP 側に置かれる実装者向けの技術対応表であって、Core を再定義しない。
 
 ---
 
@@ -30,11 +34,13 @@ VCDesign Core は不動であり、
 # 2. Design Principles
 
 1. VCDesign Core は変更しない  
-2. CCP は Core の外側にある「技術的膜」  
+2. CCP は VCDesign Core が要求する相互性条件の技術的実装であり、Core の外側に
+   付属した膜ではない（README.ja.md §7 参照）  
 3. CCP は Core の概念を“参照”するだけ  
 4. Core の意味を CCP が再定義してはならない  
-5. 本書は AI が VCDesign を誤解しないための翻訳レイヤ  
-6. 人間は本書を読む必要がない（AI向け）  
+5. 本書は実装者が CCP のフィールドを VCDesign の概念に正しく結びつけるための翻訳レイヤ  
+6. この対応表自体は実装者向けの現場資料である——これは CCP 全体が誰のためのものかの
+   宣言ではなく、本書一点の読者範囲についての記述にすぎない  
 
 ---
 
@@ -172,8 +178,8 @@ intent は VCDesign の Meaning Scope を上書きしない。
 1. VCDesign Core は不動であり、CCP は Core を変更してはならない。  
 2. CCP は Core の概念を“参照”するだけであり、意味を再定義してはならない。  
 3. CCP の技術層（署名・正規化・nonce 等）は Core に影響を与えない。  
-4. AI は CCP を読み、Core の概念を誤解しないようにする。  
-5. 人間は CCP を読む必要はない（Core は人間のための膜）。  
+4. 実装者は本書を読み、CCP のフィールドを Core の概念と取り違えないようにする。  
+5. 本対応表は実装者向けであり、VCDesign Core 自体の文書が人間向けの入口であり続ける。  
 6. CCP は decision_authority や resolution_policy を通じて、
 VCDesign Core の責任境界（Meaning / Responsibility / Execution）を
 上書きしてはならない。
@@ -189,17 +195,16 @@ VCDesign Core の責任境界（Meaning / Responsibility / Execution）を
 - CCP Implementers  
 - Multi‑Agent System Designers  
 - Boundary‑aware AI Frameworks  
-
-**人間はこの文書を読む必要はない。  
-VCDesign Core は人間のための膜であり、  
-CCP は AI のための膜である。**
+- 差し戻し条件の最小適用（README.ja.md §3）を人の工程に適用する担当者は、本書を
+  読む必要はない——本書は実装者向けのフィールド対応表であり、引き継ぎ・承認フローに
+  CCP を適用するための必読文書ではない。
 
 ---
 
 # 8. Versioning
 
 - VCDesign Core は独立してバージョン管理される  
-- CCP Handshake は Core に依存するが、Core を変更しない  
+- CCP Handshake は Core が要求する規則を実装するが、Core を変更しない  
 - 本 Mapping は CCP のバージョンに従う  
 
 ---
