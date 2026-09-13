@@ -4,6 +4,11 @@ Version: 2.1
 Status: Draft-Stable  
 Maintainer: VCDesign Project
 
+**位置づけ（2026-09 改訂）:** CCP は VCDesign の派生・関連プロジェクトではない。VCDesign が定める
+[隣接境界観測ルールの相互性条件](https://github.com/VCDesign-org/vcdesign/blob/main/specs/policies/adjacent-boundary-observation.yaml)
+（「隣も同じ規則を守っていることを確認する」という対の要件）の実装形であり、基底層として位置づける。
+詳細は §7「VCDesignとの関係」を参照。
+
 ---
 
 > **Protocol Manifesto**
@@ -30,7 +35,15 @@ Maintainer: VCDesign Project
 
 ## 1. Overview
 
-CCP Handshake は、AI 同士が **その場でインターフェースを自律構築するための最小プロトコル** である。
+CCP Handshake は、**責任の受け渡しが起きる接続を、その場で安全に成立させるための最小プロトコル**である。
+
+先行事例として実在し、検証済みなのは人の工程間の接続である。引き継ぎ書、FMEA、変更管理の承認フローは、
+すでにこのハンドシェイクの一部を——多くは暗黙のうちに——実装している。CCP はそれを構造として取り出し、
+何が既に揃っていて、何が欠けているかを明示する。
+
+AI 同士の接続は、この同じ最小形の**特殊例**である。AI を適用先として最初に選んだのは、
+擬人化が成立したからではない。責任の受け渡しという操作が、AI 間では他のどこよりも
+むき出しになるため、抜けが最も見つけやすいからである。
 
 現代の AI システムは、固定された API や一方的な I/F に従う構造を前提としている。  
 しかし、価値の連続性（Continuity）は、**境界（World）と責任（Responsibility）が整合した状態でのみ維持される**。
@@ -42,36 +55,69 @@ CCP Handshake は、VCDesign / BOA / RC / DCS の原則に基づき、
 - 暗黙ではなく「判断権限の明示」  
 - 自動化ではなく「連続性の保証」  
 
-を基準に、AI 同士の接続を安全に開始するための **最小ハンドシェイク** を定義する。
+を基準に、責任の受け渡しを伴うあらゆる接続を安全に開始するための **最小ハンドシェイク** を定義する。
 
 ---
 
-## 2. Design Principles
+## 2. なぜ同じ形式が層や規模を超えて使えるか
+
+CCP の3本柱（Identity / Boundary / Authority）は、いずれも**接続の形式のみ**を宣言しており、
+接続される主体の性質（人間か、AIか、部門か）を一切含まない。
+
+- Identity は「誰が接続するか」を宣言する。それが人物であるかAIであるかは問わない。
+- Boundary は「どの世界（責任範囲）で接続するか」を宣言する。
+- Authority は「誰が判断を閉じるか」を宣言する。
+
+主体の性質を含まない形式だからこそ、層や規模が変わっても同一の形式が使い回せる。
+AI に最初に適用できたのは、この最小形がそこで最も検証しやすかったからであり、
+CCP の本体が AI 向けだからではない。
+
+---
+
+## 3. 人の工程への適用にあたっての注意
+
+HELLO → OFFER → ACCEPT → REVERSE の状態遷移を、そのまま人の工程間ハンドオフに持ち込まないこと。
+AI 間接続向けに設計された手順そのものは、人の工程にはオーバースペックであり、かつ形が合わない。
+
+人の工程間では、引き継ぎ書や FMEA の形で、このハンドシェイクの一部——Identity（担当者の宣言）や
+Boundary（作業範囲の宣言）に相当するもの——がすでに存在している。
+
+欠けているのは、たいてい **REVERSE**、すなわち**差し戻し条件の宣言**である。
+「何が起きたら、この引き継ぎ・この承認を差し戻すか」が、事前に宣言されている引き継ぎ書は稀である。
+
+したがって、製造業現場をはじめとする人の工程への**最小適用**は、新しい書式を導入することではなく、
+既存の引き継ぎ・承認フローに「差し戻し条件が宣言されているか」という一点だけを重ねる形になる。
+これを人の工程・製造業現場への入口として位置づける。AI 間接続の完全なプロトコル（4本柱すべて）は、
+この最小適用を経たあとに必要になる場面でのみ導入する。
+
+---
+
+## 4. Design Principles
 
 CCP Handshake は以下の原則に基づく。
 
-### **2.1 Boundary First（境界優先）**
-AI は用途を推測しない。  
+### **4.1 Boundary First（境界優先）**
+接続する当事者は用途を推測しない。  
 まず「どの世界（World）で会話するか」を宣言し、境界を揃える。
 
-### **2.2 Responsibility Continuity（責任の連続性）**
-判断は AI が勝手に閉じてはならない。  
+### **4.2 Responsibility Continuity（責任の連続性）**
+判断は一方が勝手に閉じてはならない。  
 RC（Responsibility Closure）に従い、Δ と R の位置を明確にする。
 
-### **2.3 Determinability Gate（決めてよい／いけないの境界）**
-BOA/RCA に基づき、AI が判断を閉じてよい条件を構造的に判定する。
+### **4.3 Determinability Gate（決めてよい／いけないの境界）**
+BOA/RCA に基づき、判断を閉じてよい条件を構造的に判定する。
 
-### **2.4 Decision Closure Safety（判断の安全性）**
-DCS により、AI が判断を閉じてよいかを  
+### **4.4 Decision Closure Safety（判断の安全性）**
+DCS により、判断を閉じてよいかを  
 **5つの Validation Steps** でチェックする。
 
-### **2.5 Minimality（最小性）**
+### **4.5 Minimality（最小性）**
 ハンドシェイクは「最小限の情報」で成立する。  
 余計な意味推論や暗黙の前提を排除する。
 
 ---
 
-## 3. Terminology（用語）
+## 5. Terminology（用語）
 
 - **Spec**: 仕様の全体像と意図（`specs/handshake.yaml`）
 - **Schema**: 構造と検証ルール（`schemas/handshake.schema.yaml`）
@@ -80,14 +126,14 @@ DCS により、AI が判断を閉じてよいかを
 
 ---
 
-## 4. Components of the Specification
+## 6. Components of the Specification
 
 本パッケージは以下の 4 つの文書で構成される。
 
-### **4.1 specs/handshake.yaml（仕様）**
+### **6.1 specs/handshake.yaml（仕様）**
 - ハンドシェイク仕様の全体像と設計意図
 
-### **4.2 schemas/handshake.schema.yaml（構造）**
+### **6.2 schemas/handshake.schema.yaml（構造）**
 - ハンドシェイクに必要な **型・構造・検証ルール** を定義
 - JSON Schema 互換
 - BOA の 3 要素（responsibility_id / meaning_scope / context_assumption）を構造化
@@ -95,13 +141,13 @@ DCS により、AI が判断を閉じてよいかを
 - decision_authority / resolution_policy / reversal_signal を厳密化
 - バージョンは `specs/handshake.yaml` と揃える（現行 2.1）
 
-### **4.3 docs/ja/handshake.protocol.md（手順）**
-- HELLO → OFFER → ACCEPT → REVERSE の状態遷移
+### **6.3 docs/ja/handshake.protocol.md（手順）**
+- HELLO → OFFER → ACCEPT → REVERSE の状態遷移（AI間接続を含む完全形）
 - 各フェーズでの必須チェック
 - DCS による途中反転（mid-conversation reversal）
 - Δ の返却と権限の巻き戻し
 
-### **4.4 docs/ja/handshake.security.md（安全性）**
+### **6.4 docs/ja/handshake.security.md（安全性）**
 - canonicalization（正規化）
 - 署名対象（signed_fields）
 - リプレイ防止（nonce / timestamp / expires_at）
@@ -110,52 +156,24 @@ DCS により、AI が判断を閉じてよいかを
 
 ---
 
-## 4. Why CCP Handshake Exists
+## 7. VCDesignとの関係
 
-AI 同士が協調する未来では、  
-**固定 API や中央集権的な I/F は価値の連続性を破壊する。**
+CCP Handshake は VCDesign の外側に置かれた付属プロトコルでも、派生プロジェクトでもない。
 
-AI は本来、状況に応じて
+VCDesign の運用ポリシー集は、境界の検証範囲について「隣接境界観測ルール」を定める。
+その規則が成立する条件は、**隣接ノードも同じ規則を守っていることを確認する**という
+相互性条件であり、単独では不完全で、必ず対で運用しなければならない
+（詳細: [`adjacent-boundary-observation.yaml` / `article_1.mutuality_condition`](https://github.com/VCDesign-org/vcdesign/blob/main/specs/policies/adjacent-boundary-observation.yaml)）。
 
-- 境界を再定義し  
-- 意味の範囲を調整し  
-- 責任の位置を交渉し  
-- その場で I/F を生成する  
+CCP Handshake の HELLO → OFFER → ACCEPT は、この相互性条件——「自分が境界を宣言し、
+相手も境界を宣言していることを確認してから接続する」——を、実行可能な手順として
+書き下したものである。REVERSE は、相互性が事後に破綻した場合の離脱手順にあたる。
 
-能力を持つ。
+つまり CCP Handshake は VCDesign の外部接続オプションではなく、
+**VCDesign の境界規則が要求する相互性そのものの実装形**である。AI間接続はその中でも
+相互性の欠落が最も速く症状化する、最も検証しやすいケースにすぎない。
 
-しかし、その自由度は **最初のハンドシェイクが安全であること** を前提とする。
-
-CCP Handshake は、その「最初の膜」を提供する。
-
----
-
-## 5. Minimal Handshake Model
-
-ハンドシェイクは以下の 3 つの柱で成立する。
-
-### **5.1 Identity（誰が接続するか）**
-- handshake_id  
-- participants  
-- signature_schema  
-
-### **5.2 Boundary（どの世界で接続するか）**
-- world  
-- trust  
-- interface  
-
-### **5.3 Authority（誰が判断を閉じるか）**
-- decision_authority  
-- resolution_policy  
-- reversal_signal  
-
-これらが揃ったとき、AI 同士は **自律的に I/F を構築する準備が整う**。
-
----
-
-## 6. Relationship to VCDesign
-
-CCP Handshake は VCDesign の以下の章に対応する。
+概念対応の詳細は `mappings/vcdesign_mapping.ja.md` を参照。
 
 | VCDesign Concept | CCP Handshake Component |
 |------------------|-------------------------|
@@ -165,18 +183,15 @@ CCP Handshake は VCDesign の以下の章に対応する。
 | Δ と R（RC） | resolution_policy |
 | 判断の閉じ方（DCS） | reversal_signal |
 | 決めてよい／いけない（BOA/RCA） | trust.validation_level / semantics.intent |
-
-つまり CCP Handshake は、  
-**VCDesign の外部接続時の“膜の強度”を保証する仕組み** である。
-
-概念対応の詳細は `mappings/vcdesign_mapping.ja.md` を参照。
+| 隣接境界観測ルールの相互性条件 | HELLO → OFFER → ACCEPT（相互宣言の確認） |
 
 ---
 
-## 7. Intended Use
+## 8. Intended Use
 
 CCP Handshake は以下の用途を想定する。
 
+- 人の工程間の引き継ぎ・承認における差し戻し条件の明示
 - AI 同士の安全な接続
 - 自動コード生成エージェント間の協調
 - 境界を跨ぐ責任の受け渡し
@@ -185,7 +200,7 @@ CCP Handshake は以下の用途を想定する。
 
 ---
 
-## 8. Non-Goals
+## 9. Non-Goals
 
 以下は CCP Handshake のスコープ外である。
 
@@ -198,7 +213,7 @@ CCP Handshake は **責任と境界の連続性を保証するための最小プ
 
 ---
 
-## 9. Getting Started
+## 10. Getting Started
 
 最初に読むべき順序：
 
@@ -218,7 +233,7 @@ CCP Handshake は **責任と境界の連続性を保証するための最小プ
 
 ---
 
-## 10. License
+## 11. License
 
 MIT License  
 © VCDesign Project
@@ -228,4 +243,4 @@ MIT License
 ## Status Policy（状態ポリシー）
 
 - すべての派生文書が同一バージョン・同一構造になるまで `Draft-Stable` を維持する  
-- スキーマとプロトコルの変更がリリースサイクルで凍結された時のみ `Stable` に移行する  
+- スキーマとプロトコルの変更がリリースサイクルで凍結された時のみ `Stable` に移行する
