@@ -1,8 +1,14 @@
 $schema: "https://yaml-schema.org/draft-01"
 title: "CCP Minimal Handshake Schema"
-version: "2.1"
+version: "3.0"
 status: "Draft-Stable"
 audience: "AI Agents / Implementers"
+description: >
+  CCP は Value Continuity（https://github.com/value-continuity/value-continuity）を
+  「組織・エージェントをまたぐ越境」の面から実装するプロトコルである。
+  定義と原則（Value Asymmetry Principle、5原則、Decision の6語）は正本に従い、ここでは再定義しない。
+  境界の働き（guard / containment / basis_flow / revalidation）は VCDesign v2 の
+  patterns/boundary-pattern.yaml と同じ語で書く。v2.1 からの移行は README.md の移行表を参照。
 type: object
 
 required:
@@ -13,14 +19,14 @@ required:
   - interface
   - cost_model
   - decision_authority
-  - resolution_policy
+  - boundary_policy
   - reversal_signal
   - continuity_claim
 
 properties:
 
   ############################################################
-  # 1. Handshake Meta (一意性・時刻・参加者)
+  # 1. Handshake Meta (一意性・時刻・参加者) — identity
   ############################################################
   handshake_meta:
     type: object
@@ -46,25 +52,32 @@ properties:
           receiver:  { type: string }
 
   ############################################################
-  # 2. World (境界)
+  # 2. World (越境する境界の宣言) — declared_boundary
   ############################################################
   world:
     type: object
     required: [id, version]
     properties:
-      id:        { type: string }
-      version:   { type: string }
-      description:{ type: string }
+      id:          { type: string }
+      version:     { type: string }
+      description: { type: string }
 
   ############################################################
-  # 3. Agent (AI 自己申告プロファイル)
+  # 3. Agent (自己申告プロファイル) — identity
   ############################################################
   agent:
     type: object
-    required: [id, provider]
+    required: [id, provider, kind]
     properties:
       id:        { type: string }
       provider:  { type: string }
+      kind:
+        type: string
+        enum: ["ai", "human", "system"]
+        description: >
+          ai: 判断を支援するが責任を持たない（VCDesign axioms A3）。出力は人間が閉じるまで提案である。
+          human: 判断を閉じうる主体。
+          system: 決定的な処理系（ルール、トランザクション等）。
       capabilities:
         type: array
         items: { type: string }
@@ -73,7 +86,7 @@ properties:
         items: { type: string }
 
   ############################################################
-  # 4. Trust (検証強度 + リスクレベル)
+  # 4. Trust (検証強度 + リスクレベル) — guard の determinability 入力
   ############################################################
   trust:
     type: object
@@ -87,6 +100,7 @@ properties:
           syntax: 構文レベルの検証
           semantic: 意味レベルの検証（CCP標準）
           attested: TEE 等による実行証明
+          guard が判定に足りる入力かを確かめるための材料であり、判定そのものではない。
       risk_level:
         type: integer
         minimum: 0
@@ -95,15 +109,18 @@ properties:
       scope:
         type: string
         enum: ["local_session", "project", "organization"]
+        description: >
+          接続が及ぶ範囲。広げることは Expand、狭めることは Limit であり、
+          どちらも人間が閉じた判断による新しいハンドシェイクで行う。
       evidence:
         type: array
         items:
           type: object
           required: [type, issuer]
           properties:
-            type:     { type: string }
-            issuer:   { type: string }
-            reference:{ type: string }
+            type:      { type: string }
+            issuer:    { type: string }
+            reference: { type: string }
 
   ############################################################
   # 5. Interface (I/O + 意味範囲)
@@ -141,13 +158,14 @@ properties:
             description: >
               proposal: 可逆な参考案
               advice:   限定的不可逆性を含む助言
-              decision: 不可逆性を含む可能性がある判断
+              decision: 人間の final_decider が閉じた判断を運ぶ出力。
+                        AI が判断を閉じることを意味しない（decision_authority.authorization.decision_ref が必須）
           meaning_scope:
             type: string
-            description: "BOA の Meaning Scope を補強"
+            description: "出力の意味の範囲。continuity_claim.boundary.meaning_scope を上書きしない"
           irreversible:
             type: boolean
-            description: "intent=decision の場合 true 推奨"
+            description: "true の場合 authorization.blast_radius.max_loss の宣言が必須"
 
   ############################################################
   # 6. Cost Model
@@ -166,72 +184,219 @@ properties:
         enum: ["low", "normal", "high"]
 
   ############################################################
-  # 7. Decision Authority (判断権限)
+  # 7. Decision Authority (判断権限) — authority
+  #    判断は人間が閉じる。閉じた判断が、宣言を通じて越境の実行範囲を認める。
   ############################################################
   decision_authority:
     type: object
-    required: [initial_state, domain, allowed_transitions]
-    properties:
-      initial_state:
-        type: string
-        enum: ["Human-Closed", "AI-Closed"]
-      domain:
-        type: string
-        enum: ["meaning", "responsibility", "execution"]
-        description: "BOA の三分割に対応"
-      allowed_transitions:
-        type: array
-        items:
-          type: string
-          enum: ["AI→Human", "Human→AI"]
-      escalation_rules:
-        type: array
-        items:
-          type: object
-          required: [condition, action]
-          properties:
-            condition: { type: string }
-            action:
-              type: string
-              enum: ["AI→Human", "Human→AI"]
-
-  ############################################################
-  # 8. Resolution Policy (Δ と R)
-  ############################################################
-  resolution_policy:
-    type: object
-    required: [delta_transfer, resolver]
+    required: [final_decider, owner, loop, authorization, escalation]
     properties:
 
-      delta_transfer:
+      final_decider:
         type: object
-        required: [allowed, scope, redaction]
+        required: [id, kind]
         properties:
-          allowed:   { type: boolean }
-          scope:
+          id: { type: string }
+          kind:
             type: string
-            enum: ["prompt", "artifact", "state", "tool_call"]
+            enum: ["human"]
+            description: "判断を閉じる主体は常に人間（VCDesign axioms A3）"
+
+      owner:
+        type: object
+        required: [id]
+        description: "この接続の責任を保有し続ける主体（線の責任 / tenure）"
+        properties:
+          id: { type: string }
+
+      loop:
+        type: string
+        enum: ["physical", "semantic", "value", "responsibility"]
+        description: >
+          越境が作用するループ（VCDesign policies.yaml ai_extension.loops）。
+          agent.kind=ai の出力が physical / value / responsibility に作用する場合は、
+          人間が閉じた判断（authorization.decision_ref）を経なければならない。
+
+      authorization:
+        type: object
+        required: [decision, decision_ref, decided_by, blast_radius, reversibility]
+        description: >
+          この接続を認めた判断と、その宣言。宣言の範囲内の実行には追加の判断を要しない。
+          範囲を超える変更は Δ として観測し、判断し直す（VCDesign axioms A2）。
+        properties:
+          decision:
+            type: string
+            enum: ["proceed", "expand", "limit"]
+            description: >
+              接続の実行範囲を認める判断。Value Continuity の6語のうち、実行範囲を認めるのはこの3語。
+              reframe は新しい continuity_claim による新しいハンドシェイク、
+              defer は接続しない（next_review_at を返す）、retire は接続しない／CLOSE で終える。
+          decision_ref:
+            type: string
+            description: "判断ログ（VCDesign schema_log の log_id 等）への参照"
+          decided_by:
+            type: string
+            description: "判断を閉じた人間。final_decider.id と一致するか、その権限委譲を evidence で示す"
+          expand_basis:
+            type: object
+            description: "decision=expand のとき必須"
+            required: [positive_delta_ref, recovery_confirmed]
+            properties:
+              positive_delta_ref: { type: string, description: "観測された Positive Δ（spread_signals.observed 等）" }
+              recovery_confirmed: { type: boolean, description: "拡大後の範囲でも復旧できることを確認したか" }
+          blast_radius:
+            type: object
+            required: [scope, on_exceed]
+            properties:
+              scope: { type: string, description: "影響が及んでよい範囲" }
+              max_loss:
+                type: object
+                required: [unit, value]
+                description: "損失の上限。irreversible の場合は必須"
+                properties:
+                  unit:  { type: string }
+                  value: { type: number }
+              on_exceed:
+                type: string
+                enum: ["halt", "quarantine", "escalate"]
+          reversibility:
+            type: object
+            required: [class]
+            properties:
+              class:
+                type: string
+                enum: ["reversible", "costly", "irreversible"]
+              reversal_path:   { type: string }
+              reversal_window: { type: string }
+              reversal_owner:  { type: string }
+          next_review_at:
+            type: string
+            description: "ISO 8601。見直しの予定（任意）"
+
+      escalation:
+        type: object
+        required: [on_unknown, halt_owner]
+        properties:
+          on_unknown:
+            type: string
+            description: "guard verdict が unknown のときに上げる先（人間）"
+          halt_owner:
+            type: string
+            description: "この接続を停止する責任者（VCDesign policies.yaml haltability）"
+
+  ############################################################
+  # 8. Boundary Policy (境界の働き) — VCDesign boundary-pattern と同じ構造
+  #    損失は止め（containment）、根拠は通し（basis_flow）、結論は確かめ直す（revalidation）
+  ############################################################
+  boundary_policy:
+    type: object
+    required: [containment, basis_flow, revalidation, delta]
+    properties:
+
+      containment:
+        type: object
+        required: [propagation, on_breach]
+        description: "失敗と指令を区画の外へ伝播させない（閉じる）"
+        properties:
+          propagation:
+            type: string
+            enum: ["deny", "attested_only", "allow"]
+            default: "deny"
+          failure_domain: { type: string }
+          on_breach:
+            type: string
+            enum: ["quarantine", "halt", "deny"]
+          shared_dependencies:
+            type: array
+            items: { type: string }
+            description: "区画をまたいで共有される依存先（隔壁の穴）"
+
+      basis_flow:
+        type: object
+        required: [passes, default]
+        description: "根拠と残るものを通す（伝える）。containment と逆向きの既定"
+        properties:
+          passes:
+            type: array
+            items:
+              type: string
+              enum: ["basis", "evidence", "residual_assets", "positive_delta"]
+            description: "結論そのものは含めない"
+          default:
+            type: string
+            enum: ["allow", "attested_only"]
+            default: "allow"
+          restricted:
+            type: array
+            description: "根拠そのものが損失を運ぶ場合に限り、対象と理由を明示して止める"
+            items:
+              type: object
+              required: [item, reason]
+              properties:
+                item:   { type: string }
+                reason: { type: string }
           redaction:
             type: string
             enum: ["required", "optional", "forbidden"]
+            description: "通す根拠から個人情報・機密情報を除くか"
 
-      resolver:
+      revalidation:
         type: object
-        required: [default]
+        required: [upstream_trust, re_check]
+        description: "相手の結論を引き継がず、前提・根拠・権限を境界で確かめ直す"
         properties:
-          default:
+          upstream_trust:
             type: string
-            enum: ["initiator", "receiver", "negotiated"]
-          rules:
+            enum: ["none", "attested"]
+            default: "none"
+          re_check:
             type: array
             items:
-              type: object
-              required: [condition, resolver]
-              properties:
-                condition: { type: string }
-                resolver:
-                  type: string
-                  enum: ["initiator", "receiver", "negotiated"]
+              type: string
+              enum: ["precondition", "evidence_freshness", "authority"]
+          on_mismatch:
+            type: string
+            enum: ["unknown"]
+            default: "unknown"
+
+      delta:
+        type: object
+        required: [holder, transfer]
+        description: >
+          接続の中で観測された Δ の扱い。確定した Δ は判断で閉じるまで責任の下にある（closure_loop）。
+          Negative Δ は containment に、Positive Δ は basis_flow に従う。
+          Positive Δ の観測と保有は止めない。広げるかどうかは Expand の判断で決める。
+        properties:
+          holder:
+            type: object
+            required: [default]
+            properties:
+              default:
+                type: string
+                enum: ["initiator", "receiver", "negotiated"]
+              rules:
+                type: array
+                items:
+                  type: object
+                  required: [condition, holder]
+                  properties:
+                    condition: { type: string }
+                    holder:
+                      type: string
+                      enum: ["initiator", "receiver", "negotiated"]
+          transfer:
+            type: object
+            required: [allowed, scope]
+            properties:
+              allowed: { type: boolean }
+              scope:
+                type: string
+                enum: ["prompt", "artifact", "state", "tool_call"]
+          unrecorded_polarity:
+            type: string
+            enum: ["negative"]
+            default: "negative"
+            description: "向きの記録がない Δ は negative として扱う"
 
   ############################################################
   # 9. Reversal Signal (途中反転)
@@ -249,12 +414,20 @@ properties:
           properties:
             type:
               type: string
-              enum: ["validation_fail", "authority_revoked"]
+              enum:
+                - "guard_deny"             # 越境が拒否された
+                - "guard_unknown"          # 判定できない（止めて上げる）
+                - "precondition_broken"    # 宣言した前提が崩れた
+                - "blast_radius_exceeded"  # 宣言した上限を超えた
+                - "authority_revoked"      # 判断権限が取り消された
+                - "validation_fail"        # 検証に失敗した
             payload:
               type: object
               properties:
-                phase:  { type: string }   # HELLO/OFFER/ACCEPT/REVERSE
-                reason: { type: string }
+                phase:     { type: string }   # HELLO / OFFER / ACCEPT / REVERSE / CLOSE
+                reason:    { type: string }   # guard_deny では必須
+                delta_ref: { type: string }   # 返却する Δ
+                holder:    { type: string }   # 返却後の Δ の保有者
       behavior:
         type: object
         properties:
@@ -263,21 +436,64 @@ properties:
             items: { type: string }
 
   ############################################################
-  # 10. Continuity Claim (BOA の 3 要素 + 署名)
+  # 10. Continuity Claim (境界・宣言 + 署名) — declared_boundary + signature
   ############################################################
   continuity_claim:
     type: object
-    required: [id, boundary_def, signature_schema]
+    required: [id, boundary, declaration, signature_schema]
     properties:
       id: { type: string }
 
-      boundary_def:
+      boundary:
         type: object
-        required: [responsibility_id, meaning_scope, context_assumption]
+        required: [owner, precondition, meaning_scope]
         properties:
-          responsibility_id: { type: string }
-          meaning_scope:     { type: string }
-          context_assumption:{ type: string }
+          responsibility_boundary:
+            type: string
+            description: "VCDesign の責任境界 ID（B1〜B17）。該当する場合"
+          owner:
+            type: string
+            description: "境界の定義を保有し、見直しに責任を持つ主体（guard とは別）"
+          precondition:
+            type: string
+            description: "この主張が成り立つ前提。Δ の基準線（前提の側）"
+          meaning_scope:
+            type: string
+
+      declaration:
+        type: object
+        required: [value_intent]
+        properties:
+          value_intent:
+            type: string
+            description: "この接続が生かし続けようとしている価値。Δ の基準線（価値の側）"
+          residual_assets:
+            type: array
+            description: "接続が終わっても残るもの。保有者のいないものは残らない"
+            items:
+              type: object
+              required: [kind, holder]
+              properties:
+                kind:
+                  type: string
+                  enum: ["record", "standard", "basis", "connection", "capability"]
+                description: { type: string }
+                holder:      { type: string }
+          spread_signals:
+            type: object
+            properties:
+              expected:
+                type: array
+                items:
+                  type: string
+                  enum: ["reuse_cost_decline", "unsolicited_pull", "output_as_input", "value_per_connection", "other"]
+          review_triggers:
+            type: array
+            items: { type: string }
+            description: "何が変われば見直すか（時間ではなく事象）"
+          depends_on:
+            type: array
+            items: { type: string }
 
       signature_schema:
         type: object

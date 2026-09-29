@@ -1,5 +1,5 @@
 # CCP Handshake Security Specification
-Version: 2.1
+Version: 3.0
 Status: Draft-Stable
 Audience: AI Agents / Implementers
 
@@ -7,7 +7,7 @@ This document defines the "Minimum Safety Requirements" applied to `schemas/hand
 For the high-level spec and intent, see `specs/handshake.yaml`.
 Status policy: see `README.md`.
 
-VCDesign Core is immutable, and this document exists as the technical layer on the CCP side.
+CCP implements [Value Continuity](https://github.com/value-continuity/value-continuity) on the side of crossings between organizations and agents. The signature, canonicalization and replay protection below are technical means; they do not change the meaning of Value Continuity or VCDesign.
 
 ---
 
@@ -19,9 +19,11 @@ CCP Handshake assumes the following threats:
 - Man-in-the-Middle Attack (Tampering with content)
 - Signature Mismatch (Hash mismatch due to differences in normalization methods)
 - Participant Impersonation
-- Unauthorized Transfer of Δ (Unresolved Area)
-- Unauthorized Promotion of decision_authority (Reversal of AI→Human)
-- Destruction of Responsibility Boundary of VCDesign Core
+- Unauthorized Transfer of Δ (moving a Δ without a holder, or across a failure domain)
+- Unauthorized Authority (an AI presented as final_decider, or execution beyond the authorized scope)
+- Unauthorized Expand (widening scope without an observed Positive Δ and confirmed recovery)
+- Leakage through basis_flow (basis that itself carries a loss: confidential data, excess authority)
+- Transitive trust (inheriting the other party's conclusion without revalidation)
 
 This specification defines requirements to prevent these at minimum cost.
 
@@ -57,11 +59,12 @@ This specification defines requirements to prevent these at minimum cost.
 
 Apply canonicalization before signing.
 
-## 3.1 Clarification of MUST / MAY (Revised)
+## 3.1 MUST / MAY
 
+```
 MUST: json_c14n
-MAY: yaml_c14n (However, signature target must be converted to JSON before canonicalizing)
-
+MAY:  yaml_c14n (the signature target must be converted to JSON before canonicalizing)
+```
 
 ### Reason
 - YAML has large implementation differences, and signature compatibility is easily broken.
@@ -80,35 +83,27 @@ MAY: yaml_c14n (However, signature target must be converted to JSON before canon
 Only fields listed in `continuity_claim.signature_schema.signed_fields` are targets for signing.
 
 Recommended Set:
+
+```
 signed_fields:
-handshake_meta
-world
-agent
-trust
-interface
-decision_authority
-resolution_policy
+  - handshake_meta
+  - world
+  - agent
+  - trust
+  - interface
+  - decision_authority
+  - boundary_policy
+  - continuity_claim.boundary
+  - continuity_claim.declaration
+```
 
-* Note that `signature_schema` itself is a technical layer, so it does not need to be included in `signed_fields`, but including "boundary_def (claim part)" of `continuity_claim` in `signed_fields` is also allowed in operation.
+`signature_schema` itself (algorithm, key reference, normalization method) is technical metadata and does not need to be signed.
 
-### Supplement: About Signature Target of continuity_claim
+`decision_authority`, `boundary_policy` and the claim parts of `continuity_claim` are recommended because they are the content of the agreement. Signing them makes it possible to verify:
 
-Since `signature_schema` itself (algorithm, key reference, normalization method, etc.) is technical metadata, it does not necessarily need to be included in `signed_fields`.
-
-On the other hand, for **claim parts that define the meaning and boundary of agreement** such as the following, including them in `signed_fields` is allowed depending on implementation or operational policy:
-
-- continuity_claim.boundary_def
-- continuity_claim.claim_text
-- Other claim fields that will be subject to future verification as agreement content
-
-This makes it possible to verify by signature:
-- "Which boundary was agreed upon"
-- "Whether that claim has been rewritten later"
-
-
-### Meaning
-- Fix the Boundary, Responsibility, and Meaning of VCDesign
-- Prevent the Technical Layer (Signature) from destroying the Philosophical Layer (VCDesign)
+- Who closed the decision, and within what scope the connection runs
+- What is stopped and what is passed on at this boundary
+- Which boundary, precondition and value intent were agreed upon, and whether they were rewritten later
 
 ---
 
@@ -116,10 +111,9 @@ This makes it possible to verify by signature:
 
 Combine the following 3 elements to prevent replay attacks.
 
-## 5.1 Retention Period of nonce (Revised)
-nonce must be retained until expires_at + safety_margin
-safety_margin is recommended to be 10 minutes (SHOULD)
-
+## 5.1 Retention Period of nonce
+nonce must be retained until `expires_at + safety_margin`.
+safety_margin is recommended to be 10 minutes (SHOULD).
 
 ## 5.2 Allowable Range of timestamp
 - Within ±5 minutes
@@ -131,68 +125,87 @@ safety_margin is recommended to be 10 minutes (SHOULD)
 
 # 6. Authority Safety (Safety of Decision Authority)
 
-To prevent misuse of decision_authority, the following are mandatory.
+AI supports decisions but does not hold final responsibility (VCDesign axioms A3). The following are mandatory.
 
-## 6.1 Case of intent=decision
+## 6.1 Human final decider
+- `decision_authority.final_decider.kind = human`
+- `authorization.decided_by` matches the final_decider, or its delegation is shown in `trust.evidence`
+
+## 6.2 Case of intent=decision
 - `trust.risk_level >= 2`
 - `trust.validation_level >= semantic`
-- If `irreversible=true`, `initial_state=Human-Closed`
+- `authorization.decision_ref` is present (the decision was closed by a human before the crossing)
+- If `irreversible=true`, `blast_radius.max_loss` is declared
 
-## 6.2 Enforcement of AI→Human
-Transition to AI→Human is mandatory under the following conditions:
+## 6.3 Expand
+- `authorization.expand_basis.positive_delta_ref` is present (average outcome alone is never a basis)
+- `authorization.expand_basis.recovery_confirmed = true` (recovery is possible in the widened scope)
 
-- DCS validation_fail  
-- reversal_signal.type = authority_revoked  
-- trust.validation_level < semantic  
-- Inconsistency of Δ  
+## 6.4 AI in slow loops
+- If `agent.kind = ai` and `decision_authority.loop` is `physical`, `value` or `responsibility`, the crossing must carry `authorization.decision_ref`. LLM output requires an explicit gate before real-world effect.
+
+## 6.5 Return of control
+Execution stops and control returns to the human final_decider under the following conditions:
+
+- `reversal_signal.type = authority_revoked`
+- `guard_unknown` that cannot be resolved inside the connection
+- `blast_radius_exceeded` with `on_exceed = halt` or `escalate`
+- Inconsistency of Δ
 
 ---
 
-# 7. Delta Safety (Safety of Δ)
+# 7. Boundary Safety
 
-Handling of Δ (Unresolved Area) must satisfy the following.
+## 7.1 containment (do not let downside propagate)
+- `propagation` is `deny` by default. `attested_only` and `allow` must be explicit.
+- `on_breach` (quarantine / halt / deny) is declared.
+- `shared_dependencies` are declared; they are holes in the bulkhead.
 
-## 7.1 delta_transfer.scope
-- `prompt` / `artifact` / `state` / `tool_call`
+## 7.2 basis_flow (make upside propagable)
+- `default` is `allow` by default. Basis, evidence, residual assets and Positive Δ pass; conclusions do not.
+- Only basis that itself carries a loss is `restricted`, and each item has a reason.
+- If `redaction = required`, delete personal and confidential information before passing.
+- The reason for a `deny` is passed as basis.
+- Passing does not mean widening. Widening the connection requires Expand.
 
-## 7.2 redaction
-- If `required`, delete personal information / confidential information
+## 7.3 revalidation
+- `upstream_trust` is `none` by default. The other party's conclusion is not inherited.
+- precondition, evidence freshness and authority are re-checked at the receiving boundary.
+- A mismatch is `unknown`.
 
-## 7.3 Signature of Δ
-- When transferring Δ, sender adds hash of Δ
+## 7.4 Δ
+- `delta.transfer.scope`: `prompt` / `artifact` / `state` / `tool_call`
+- When transferring a Δ, the sender adds a hash of the Δ and names its holder.
+- A Δ without recorded polarity is treated as negative.
 
 ---
 
 # 8. Reversal Safety (Safety of Mid-stream Reversal)
 
-Mid-stream Reversal (REVERSE) occurs under the following conditions.
-
 ## 8.1 Occurrence Conditions
-- DCS validation_fail  
-- Contradiction in decision_authority  
-- Breakdown of trust conditions  
-- Inconsistency of Δ  
-- When possibility of breaking VCDesign boundary is detected  
+- `guard_deny` / `guard_unknown`
+- `precondition_broken`
+- `blast_radius_exceeded`
+- `authority_revoked`
+- `validation_fail`
 
 ## 8.2 Notification Content
 - `reversal_signal.events`
-- `phase` (HELLO / OFFER / ACCEPT / REVERSE)
+- `phase` (HELLO / OFFER / ACCEPT / REVERSE / CLOSE)
 - `reason`
+- `delta_ref` and `holder` of the returned Δ
 
 ## 8.3 Authority Rewind
-- If `authority_revoked`, AI→Human is forced
+- If `authority_revoked`, execution stops and control returns to the human final_decider.
+- State may be reverted; the responsibility record (verdicts, reversals, Δ holders) is append-only.
 
 ---
 
-# 9. VCDesign Integration Safety
+# 9. Value Continuity and VCDesign Integration Safety
 
-CCP must not overwrite the Responsibility Boundary of VCDesign Core.
-
-Especially:
-decision_authority.domain refers to the Responsibility Domain of VCDesign only, and must not change its meaning.
-
-resolution_policy is a technical mapping of RC (Δ and R), and must not change the philosophical meaning of Δ.
-
+- CCP does not redefine Value Continuity, the Value Asymmetry Principle, the five principles or Decision.
+- CCP does not redefine VCDesign terms; `decision_authority.loop`, `boundary_policy` and `boundary_policy.delta` refer to them as they are.
+- Technical fields (signature, canonicalization, nonce, cost_model) do not carry value meaning.
 
 ---
 
@@ -200,16 +213,17 @@ resolution_policy is a technical mapping of RC (Δ and R), and must not change t
 
 ## 10.1 Success
 - When ACCEPT signature verification succeeds
+- CLOSE with residual assets handed over to named holders
 
 ## 10.2 Failure
-- REJECT  
-- REVERSE  
-- expires_at exceeded  
-- nonce reuse  
+- REJECT
+- REVERSE
+- expires_at exceeded
+- nonce reuse
 
 ---
 
 # 11. License
 
-MIT License  
+MIT License
 © VCDesign Project

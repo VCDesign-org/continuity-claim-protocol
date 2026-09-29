@@ -1,330 +1,179 @@
 handshake_spec:
   meta:
     name: "CCP Handshake Specification"
-    version: "2.1"
+    version: "3.0"
     status: "Draft-Stable"
     maintainer: "VCDesign Project"
     language: "en"
     source: "specs/handshake.yaml"
+    implements: "Value Continuity (https://github.com/value-continuity/value-continuity)"
+    aligned_with: "VCDesign v2.0 (https://github.com/VCDesign-org/vcdesign)"
     derived_docs:
       - "schemas/handshake.schema.yaml"
       - "docs/en/handshake.protocol.md"
       - "docs/en/handshake.security.md"
     doc_versions:
-      README.md: "2.1"
-      README.ja.md: "2.1"
-      docs/en/handshake.protocol.md: "2.1"
-      docs/ja/handshake.protocol.md: "2.1"
-      docs/en/handshake.security.md: "2.1"
-      docs/ja/handshake.security.md: "2.1"
-      docs/en/continuity-claim.md: "2.1"
-      docs/ja/continuity-claim.md: "2.1"
-      schemas/handshake.schema.yaml: "2.1"
-      mappings/vcdesign_mapping.md: "1.1"
-      mappings/vcdesign_mapping.ja.md: "1.1"
+      README.md: "3.0"
+      README.ja.md: "3.0"
+      docs/en/handshake.protocol.md: "3.0"
+      docs/ja/handshake.protocol.md: "3.0"
+      docs/en/handshake.security.md: "3.0"
+      docs/ja/handshake.security.md: "3.0"
+      docs/en/continuity-claim.md: "3.0"
+      docs/ja/continuity-claim.md: "3.0"
+      schemas/handshake.schema.yaml: "3.0"
+      mappings/vcdesign_mapping.md: "2.0"
+      mappings/vcdesign_mapping.ja.md: "2.0"
     version_policy:
       - "schemas/handshake.schema.yaml must match meta.version"
       - "docs/en/* and docs/ja/* should match meta.version when released"
+      - "3.0 is not compatible with 2.1. See the migration table in README.md"
 
   purpose: >
-    CCP Handshake is the minimal protocol for AI to autonomously construct interfaces on the fly.
-    Continuity of value is maintained only when the Boundary (World) and Responsibility are aligned.
-    This document is the high-level spec; detailed structure is defined in schemas/handshake.schema.yaml,
-    and operational rules are defined in docs/en/handshake.protocol.md and docs/en/handshake.security.md.
-    
+    CCP implements Value Continuity on the side of crossings between organizations and agents.
+    Value Continuity is keeping the ability to create the next value, even through change and failure.
+    Its central principle, the Value Asymmetry Principle, is: make upside propagable; do not let downside propagate.
+    Those definitions live in the canonical repository and are not redefined here.
+    CCP specifies what two parties declare before a crossing, how the crossing is checked,
+    what is stopped and what is passed on, and how a connection is reversed and closed.
+    Detailed structure is defined in schemas/handshake.schema.yaml;
+    operational rules are defined in docs/en/handshake.protocol.md and docs/en/handshake.security.md.
+
     Guarantees:
-    - Declaration of Boundary
-    - Continuity of Responsibility
-    - Explication of Decision Authority
-    - Handling of Δ and R
-    - Safety of Mid-stream Reversal
+    - Declaration of identity, boundary, authority and signature before crossing
+    - Every crossing receives a guard verdict (pass / deny / unknown); unknown is never pass
+    - Losses are stopped at the boundary (containment); basis passes (basis_flow)
+    - Conclusions of the other party are revalidated, not inherited
+    - Decisions are closed by a human; the connection runs within the authorized scope
+    - Every confirmed Δ in a connection has a holder until a decision closes it
+
+  family:
+    principle: "Value Continuity"
+    siblings:
+      VCDesign: "implements Value Continuity on the side of judgment and responsibility"
+      BEAM: "a sibling implementation of Value Continuity (defined in its own repository)"
+      CCP: "implements Value Continuity on the side of crossings between organizations and agents"
+    rule: "CCP does not redefine Value Continuity, and does not redefine the terms of its siblings"
 
   design_principles:
-    boundary_first: "AI does not infer purpose. First, it declares 'which World to converse in'."
-    responsibility_continuity: "Decisions must not be closed arbitrarily by AI. Follow RC to clarify Δ and R positions."
-    determinability_gate: "Structurally determine the conditions under which AI is allowed to close decisions (BOA/RCA)."
-    decision_closure_safety: "Check whether AI is allowed to close decisions via 5 Validation Steps (DCS)."
+    boundary_first: "AI does not infer purpose. First, declare which World to cross into, who owns the boundary, and on what precondition."
+    human_closes_decisions: "AI supports decisions but does not hold final responsibility. The final_decider is always human (VCDesign axioms A3)."
+    scope_authorized_by_decision: "A crossing runs within the scope declared by a human decision (proceed / expand / limit). Exceeding it is a Δ and is re-decided (VCDesign axioms A2)."
+    asymmetry_at_the_boundary: "Negative Δ is contained; basis, evidence, residual assets and Positive Δ are made propagable. Propagating further requires Expand."
+    unknown_fails_safe: "If the input is not sufficient for a verdict, the verdict is unknown: stop, expose, escalate. Never guess."
     minimality: "Eliminate unnecessary semantic inference or implicit assumptions."
 
-  schema_definition:
-    $schema: "https://yaml-schema.org/draft-01"
-    title: "CCP Minimal Handshake Schema"
-    version: "2.0"
-    type: object
+  schema:
+    ref: "schemas/handshake.schema.yaml"
+    version: "3.0"
     required:
-      - handshake_meta
-      - world
-      - agent
-      - trust
+      - handshake_meta        # identity
+      - world                 # declared_boundary
+      - agent                 # identity
+      - trust                 # input to guard determinability
       - interface
       - cost_model
-      - decision_authority
-      - resolution_policy
+      - decision_authority    # authority
+      - boundary_policy       # containment / basis_flow / revalidation / delta
       - reversal_signal
-      - continuity_claim
-    
-    properties:
-      handshake_meta:
-        type: object
-        required: [handshake_id, timestamp, expires_at, nonce, participants]
-        properties:
-          handshake_id: { type: string }
-          timestamp:    { type: string }
-          expires_at:   { type: string }
-          nonce:        { type: string }
-          participants:
-            type: object
-            required: [initiator, receiver]
-            properties:
-              initiator: { type: string }
-              receiver:  { type: string }
-      
-      world:
-        type: object
-        required: [id, version]
-        properties:
-          id:        { type: string }
-          version:   { type: string }
-          description: { type: string }
-
-      agent:
-        type: object
-        required: [id, provider]
-        properties:
-          id:        { type: string }
-          provider:  { type: string }
-          capabilities: { type: array, items: { type: string } }
-          limitations:  { type: array, items: { type: string } }
-
-      trust:
-        type: object
-        required: [validation_level, risk_level, scope]
-        properties:
-          validation_level:
-            type: string
-            enum: ["raw", "syntax", "semantic", "attested"]
-          risk_level:
-            type: integer
-            minimum: 0
-            maximum: 3
-          scope:
-            type: string
-            enum: ["local_session", "project", "organization"]
-          evidence:
-            type: array
-            items:
-              type: object
-              required: [type, issuer]
-              properties:
-                type:     { type: string }
-                issuer:   { type: string }
-                reference: { type: string }
-
-      interface:
-        type: object
-        required: [input, output, semantics]
-        properties:
-          input:
-            type: object
-            required: [format]
-            properties:
-              format: { type: string, enum: ["json", "yaml", "text"] }
-              schema_ref: { type: string }
-          output:
-            type: object
-            required: [format]
-            properties:
-              format: { type: string, enum: ["json", "yaml", "text"] }
-              schema_ref: { type: string }
-          semantics:
-            type: object
-            required: [intent]
-            properties:
-              intent:
-                type: string
-                enum: ["proposal", "advice", "decision"]
-              meaning_scope: { type: string }
-              irreversible:  { type: boolean }
-
-      cost_model:
-        type: object
-        required: [max_tokens, max_latency_ms]
-        properties:
-          max_tokens:     { type: integer }
-          max_latency_ms: { type: integer }
-          billing_unit:   { type: string, enum: ["per_1k_tokens", "per_request"] }
-          priority:       { type: string, enum: ["low", "normal", "high"] }
-
-      decision_authority:
-        type: object
-        required: [initial_state, domain, allowed_transitions]
-        properties:
-          initial_state:
-            type: string
-            enum: ["Human-Closed", "AI-Closed"]
-          domain:
-            type: string
-            enum: ["meaning", "responsibility", "execution"]
-          allowed_transitions:
-            type: array
-            items:
-              type: string
-              enum: ["AI→Human", "Human→AI"]
-          escalation_rules:
-            type: array
-            items:
-              type: object
-              required: [condition, action]
-              properties:
-                condition: { type: string }
-                action:
-                  type: string
-                  enum: ["AI→Human", "Human→AI"]
-
-      resolution_policy:
-        type: object
-        required: [delta_transfer, resolver]
-        properties:
-          delta_transfer:
-            type: object
-            required: [allowed, scope, redaction]
-            properties:
-              allowed:   { type: boolean }
-              scope:
-                type: string
-                enum: ["prompt", "artifact", "state", "tool_call"]
-              redaction:
-                type: string
-                enum: ["required", "optional", "forbidden"]
-          resolver:
-            type: object
-            required: [default]
-            properties:
-              default:
-                type: string
-                enum: ["initiator", "receiver", "negotiated"]
-              rules:
-                type: array
-                items:
-                  type: object
-                  required: [condition, resolver]
-                  properties:
-                    condition: { type: string }
-                    resolver:
-                      type: string
-                      enum: ["initiator", "receiver", "negotiated"]
-
-      reversal_signal:
-        type: object
-        required: [enabled, events]
-        properties:
-          enabled: { type: boolean }
-          events:
-            type: array
-            items:
-              type: object
-              required: [type]
-              properties:
-                type:
-                  type: string
-                  enum: ["validation_fail", "authority_revoked"]
-                payload:
-                  type: object
-                  properties:
-                    phase:  { type: string }
-                    reason: { type: string }
-          behavior:
-            type: object
-            properties:
-              on_reversal:
-                type: array
-                items: { type: string }
-
-      continuity_claim:
-        type: object
-        required: [id, boundary_def, signature_schema]
-        properties:
-          id: { type: string }
-          boundary_def:
-            type: object
-            required: [responsibility_id, meaning_scope, context_assumption]
-            properties:
-              responsibility_id: { type: string }
-              meaning_scope:     { type: string }
-              context_assumption: { type: string }
-          signature_schema:
-            type: object
-            required: [algorithm, canonicalization, signed_fields, public_key]
-            properties:
-              algorithm:
-                type: string
-                enum: ["ed25519", "rsa-sha256"]
-              canonicalization:
-                type: string
-                enum: ["json_c14n", "yaml_c14n"]
-              signed_fields:
-                type: array
-                items: { type: string }
-              public_key: { type: string }
-              key_ref:    { type: string }
+      - continuity_claim      # declared_boundary + declaration + signature
 
   protocol_flow:
     States:
-      HELLO: "Session start, exchange of handshake_meta"
-      OFFER: "Initiator sends handshake proposal"
-      ACCEPT: "Receiver approves proposal"
-      REJECT: "Receiver rejects"
-      REVERSE: "Mid-stream reversal based on DCS/BOA/RC"
+      HELLO: "Session start, exchange of identity and declared boundary"
+      OFFER: "Initiator presents authority, boundary policy and continuity claim"
+      ACCEPT: "Receiver's guard verdict is pass; signature returned"
+      REJECT: "Receiver's guard verdict is deny (with reason) or unknown (escalated)"
+      REVERSE: "Mid-stream reversal: stop, contain, return Δ with a holder, escalate to a human"
+      CLOSE: "End of connection: release responsibility, notify dependents, hand over residual assets"
 
     Sequence:
       HELLO:
-        sent: [handshake_meta, world.id, agent.id, trust.validation_level]
-        checks: [timestamp ±5min, nonce unused, signature_schema valid]
-      
+        sent: [handshake_meta, world.id, agent.id, agent.kind, trust.validation_level]
+        checks: [timestamp ±5min, expires_at in future, nonce unused, signature_schema valid]
+
       OFFER:
-        sent: [interface, cost_model, decision_authority, resolution_policy, continuity_claim]
+        sent: [interface, cost_model, decision_authority, boundary_policy, continuity_claim]
         checks:
-          - "validation_level >= semantic"
-          - "intent=decision -> risk_level >= 2"
-          - "irreversible=true -> initial_state=Human-Closed"
+          - "decision_authority.final_decider.kind = human"
+          - "decision_authority.owner and continuity_claim.boundary.owner exist"
+          - "intent=decision -> validation_level >= semantic, risk_level >= 2, authorization.decision_ref present"
+          - "irreversible=true or reversibility.class=irreversible -> blast_radius.max_loss declared"
+          - "authorization.decision=expand -> expand_basis.positive_delta_ref present and recovery_confirmed=true"
+          - "agent.kind=ai and loop in [physical, value, responsibility] -> authorization.decision_ref present"
+          - "containment.propagation defaults to deny; basis_flow.default defaults to allow"
 
       ACCEPT:
-        sent: [signature]
+        sent: [verdict=pass, signature]
         checks:
           - "Normalize signed_fields according to canonicalization"
           - "signature matches"
-          - "delta_transfer.scope is compatible"
+          - "revalidation.re_check passes (precondition, evidence_freshness, authority)"
+          - "delta.transfer.scope is compatible"
+
+      REJECT:
+        sent: [verdict (deny | unknown), reason]
+        checks:
+          - "deny carries a reason; the reason flows as basis"
+          - "unknown is escalated to decision_authority.escalation.on_unknown; never treated as pass"
 
       REVERSE:
-        trigger: "DCS validation_fail etc."
-        sent: [reversal_signal.events, "Return of unresolved Δ"]
-        checks: ["authority_revoked -> Force AI->Human"]
+        trigger: "guard_deny / guard_unknown / precondition_broken / blast_radius_exceeded / authority_revoked / validation_fail"
+        sent: [reversal_signal.events, "Return of unresolved Δ with its holder"]
+        checks:
+          - "authority_revoked -> execution stops and control returns to the human final_decider"
+          - "blast_radius_exceeded -> blast_radius.on_exceed is applied"
+          - "the returned Δ has a holder (never ownerless)"
+
+      CLOSE:
+        trigger: "retire, or end of the authorized scope / expires_at"
+        sent: ["release of responsibility", "notification to dependents", "residual_assets with holders"]
 
   security_governance:
     canonicalization:
-      - "json_c14n / yaml_c14n"
+      - "json_c14n MUST / yaml_c14n MAY (converted to JSON first)"
       - "Fix field order"
       - "Eliminate variations in whitespace / newlines"
-    
-    signed_fields: [handshake_meta, world, agent, trust, interface, decision_authority, resolution_policy]
-    
+
+    signed_fields: [handshake_meta, world, agent, trust, interface, decision_authority, boundary_policy, continuity_claim.boundary, continuity_claim.declaration]
+
     replay_protection: [nonce unique, timestamp ±5min, expires_at mandatory]
-    
+
     authority_safety:
-      - "intent=decision -> risk_level>=2"
-      - "irreversible=true -> Human-Closed"
-      - "validation_fail -> AI->Human"
-    
-    delta_safety:
-      - "scope: prompt / artifact / state / tool_call"
-      - "redaction: required / optional / forbidden"
+      - "final_decider is human"
+      - "intent=decision -> risk_level>=2 and decision_ref present"
+      - "irreversible -> declared max_loss"
+      - "expand -> observed Positive Δ and confirmed recovery"
+      - "authority_revoked -> stop and return control to the human final_decider"
+
+    boundary_safety:
+      - "containment.propagation: deny (default) / attested_only / allow"
+      - "basis_flow.default: allow (default) / attested_only; restricted items need a reason"
+      - "revalidation.upstream_trust: none (default) / attested"
+      - "delta.transfer.scope: prompt / artifact / state / tool_call"
+      - "basis_flow.redaction: required / optional / forbidden"
+
+  value_continuity_alignment:
+    Value_Asymmetry_Principle: "boundary_policy.containment (downside) and boundary_policy.basis_flow (upside)"
+    Decision: "decision_authority.authorization.decision (proceed / expand / limit); reframe / defer / retire as protocol outcomes"
+    Delta: "boundary_policy.delta; baseline = continuity_claim.boundary.precondition + continuity_claim.declaration.value_intent"
+    Five_principles:
+      keep: "continuity_claim.declaration.residual_assets, decision_authority.owner"
+      find: "continuity_claim.declaration.spread_signals, basis_flow.passes: positive_delta"
+      close: "boundary_policy.containment, authorization.blast_radius"
+      try: "authorization.reversibility, escalation.halt_owner, REVERSE"
+      pass_on: "boundary_policy.basis_flow, boundary_policy.revalidation"
 
   vcdesign_alignment:
-    Chapter: "continuity_claim.boundary_def"
-    Boundary: "world.id"
-    Responsibility: "decision_authority.domain"
-    RC: "resolution_policy"
-    DCS: "reversal_signal"
-    BOA_RCA: "trust.validation_level / semantics.intent"
+    boundary_pattern.external_crossing: "the whole handshake (identity, declared_boundary, authority, signature)"
+    boundary_pattern.guard: "ACCEPT / REJECT verdict (pass / deny / unknown)"
+    boundary_pattern.containment: "boundary_policy.containment"
+    boundary_pattern.basis_flow: "boundary_policy.basis_flow"
+    boundary_pattern.revalidation: "boundary_policy.revalidation"
+    boundary_pattern.tenure: "continuity_claim.boundary.owner"
+    core.decision: "decision_authority.authorization"
+    core.closure_loop: "boundary_policy.delta.holder"
+    policies.ai_extension.loops: "decision_authority.loop"
+    policies.haltability: "decision_authority.escalation.halt_owner"
 
   license: "MIT License"
