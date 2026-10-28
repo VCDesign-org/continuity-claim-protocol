@@ -212,6 +212,10 @@ Order to read first:
    → Understand why it is safe
 
 
+### Profiles (application layers on top of Core)
+
+- **docs/en/life-profile.md** (Draft 0.3)
+  → CCP Life Profile: applies CCP to connections between a person and external AIs. Extension schema: `schemas/life-profile.schema.yaml`. Does not change Core semantics.
 
 ---
 

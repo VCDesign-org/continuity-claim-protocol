@@ -1,0 +1,364 @@
+$schema: "https://yaml-schema.org/draft-01"
+title: "CCP Life Profile Extension Schema"
+version: "0.3"
+status: "Draft"
+core_version: "2.1"
+audience: "AI Agents / Implementers"
+description: >
+  CCP Handshake v2.1（schemas/handshake.schema.yaml）を「本人と外部 AI の接続」に
+  適用するためのプロファイル拡張。Core スキーマは変更しない。
+  本スキーマは Core のハンドシェイク文書に追加されるトップレベルの `life_profile`
+  オブジェクトと、プロファイル固有のメッセージ（REJECT 理由・削除状態・L3 記録）を定義する。
+  本文は docs/ja/life-profile.md / docs/en/life-profile.md を参照。
+  値の列挙のうち「提案」と注記したものは決定事項ではない。
+
+############################################################
+# 0. Core との関係
+############################################################
+# - Core スキーマは additionalProperties を禁止していないため、
+#   トップレベルに `life_profile` を追加しても Core の検証は変わらない。
+# - プロファイル適用時は continuity_claim.signature_schema.signed_fields に
+#   "life_profile" を含める（Core security 4 章が許す運用上の追加）。
+# - LVC の用語（L0〜L3, D0〜D4, 介入レベル 0〜5, 上限・既定値・合意値）は
+#   LVC 側の定義をそのまま参照し、本スキーマで意味を変えない。
+
+definitions:
+
+  ##########################################################
+  # 共通の列挙
+  ##########################################################
+  lcs_layer:
+    type: string
+    enum: ["L0", "L1", "L2", "L3"]
+    description: "LCS の層。L0=事実 / L1=価値 / L2=判断 / L3=接続・委譲（外部には開示しない）"
+
+  disclosure_stage:
+    type: string
+    enum: ["D0", "D1", "D2", "D3", "D4"]
+    description: "LCS の開示段階。D0=非開示 / D1=存在のみ / D2=抽象化 / D3=要約 / D4=原文。D1 も開示である"
+
+  intervention_level:
+    type: integer
+    minimum: 0
+    maximum: 5
+    description: "IB の介入レベル。0=不関与 / 1=観測 / 2=提示 / 3=提案 / 4=確認付き実行 / 5=委任実行"
+
+  activation_trigger:
+    type: string
+    enum: ["on_request", "allowed_event", "spontaneous"]
+    description: >
+      IB の起動条件。要求時 / 許可イベント / 自発。
+      IB の既定は要求時と許可イベント（許可イベントは本人が IB に登録したものだけ）。自発は既定で禁止
+
+  ##########################################################
+  # 4.1 外部 AI の宣言（OFFER で提示する）
+  ##########################################################
+  declaration:
+    type: object
+    required:
+      - purpose
+      - requested_disclosure
+      - requested_intervention_level
+      - activation
+      - retention
+      - secondary_use
+      - purpose_limitation_pledge
+      - ib_conduct_pledge
+      - connection_valid_until
+    properties:
+
+      purpose:
+        type: object
+        required: [id, description]
+        properties:
+          id:
+            type: string
+            description: "目的の識別子。分類体系は未決（LVC と相談）"
+          description:
+            type: string
+            description: "人が読める目的の説明"
+
+      requested_disclosure:
+        type: array
+        minItems: 1
+        description: >
+          求める層と開示段階の組。層ごとに一つ、必要なら項目ごとに指定する。
+          ここに現れない層は D0（非開示）を求めたものとみなす。
+        items:
+          type: object
+          required: [layer, stage]
+          properties:
+            layer: { $ref: "#/definitions/lcs_layer" }
+            stage: { $ref: "#/definitions/disclosure_stage" }
+            items:
+              type: array
+              description: "項目単位の要求（例：資産の残高推移）。項目 ID の体系は LCS 側で定める（未決）"
+              items:
+                type: object
+                required: [item, stage]
+                properties:
+                  item:  { type: string }
+                  stage: { $ref: "#/definitions/disclosure_stage" }
+
+      requested_intervention_level:
+        $ref: "#/definitions/intervention_level"
+
+      activation:
+        type: array
+        minItems: 1
+        items: { $ref: "#/definitions/activation_trigger" }
+
+      activation_events:
+        type: array
+        description: >
+          activation に allowed_event を含む場合に必須。起動のきっかけとして求める許可イベント。
+          本人が IB に登録した許可イベント（IB の allowed_event）に含まれるものだけ受諾される
+        items: { type: string }
+
+      retention:
+        type: object
+        required: [mode]
+        description: >
+          受け取ったデータの保持期間。handshake_meta.expires_at（セッションの期限）とは別物。
+        properties:
+          mode:
+            type: string
+            enum: ["none", "session", "duration"]
+            description: >
+              none: 処理にのみ使い保存しない /
+              session: 接続（grant）の終了時に削除 /
+              duration: 受領から duration の間だけ保持
+          duration:
+            type: string
+            description: "ISO 8601 duration（mode=duration のとき必須）"
+          delete_on_revoke:
+            type: boolean
+            description: "取消・終結時に削除すること。プロファイルは true を要求する"
+
+      secondary_use:
+        type: object
+        required: [declared]
+        properties:
+          declared:
+            type: boolean
+            description: "宣言した目的以外で利用するか。true の場合は REJECT"
+          categories:
+            type: array
+            description: "declared=true の場合の利用区分（例：model_training, onward_transfer, analytics）"
+            items: { type: string }
+
+      purpose_limitation_pledge:
+        type: boolean
+        const: true
+        description: "宣言した目的以外にデータを使わないことの宣言。true 以外は宣言の欠落として扱う"
+
+      ib_conduct_pledge:
+        type: boolean
+        const: true
+        description: >
+          IB 5 章「AI が行わないこと」の 6 項目を守ることの宣言（必須）。
+          項目の内容は IB を正本とする。true 以外は宣言の欠落として扱う
+
+      connection_valid_until:
+        type: string
+        description: >
+          ISO 8601。求める接続（grant）の有効期限。handshake_meta.expires_at（ハンドシェイクの期限）とは別物。
+          ACCEPT で新しい条件を足さないよう、OFFER の時点で宣言する
+
+      delegation:
+        type: object
+        description: >
+          委譲の範囲・期限・取り消し条件。介入レベル 4 と 5 で宣言でき、レベル 5 では必須。
+          Core の "Human→AI" 遷移を含めてよいのはレベル 5 のみ（本文 DA-3）
+        required: [scope, expires_at, revoke_on]
+        properties:
+          scope:      { type: string }
+          expires_at: { type: string, description: "ISO 8601" }
+          revoke_on:
+            type: array
+            minItems: 1
+            description: "取り消し条件（IB の revoke_on）。成立した時点で委譲は失効する"
+            items: { type: string }
+
+  ##########################################################
+  # ACCEPT で確定する合意値（grant）
+  ##########################################################
+  grant:
+    type: object
+    description: >
+      本人側で保持する合意値と接続状態。メッセージとしては送らない。
+      プロファイルでは ACCEPT は OFFER をそのまま承認するため、合意値は OFFER の declaration と同値になる
+      （狭める場合は REJECT + 再 OFFER）。
+      grant は実行の根拠として残り続けない。開示・実行のたびにゲートで再確認する。
+    required: [handshake_id, state, valid_until, agreed]
+    properties:
+      handshake_id: { type: string }
+      agreed:
+        $ref: "#/definitions/declaration"
+        description: "合意値（ACCEPT したときの declaration）"
+      accepted_at:
+        type: string
+        description: "ISO 8601"
+      state:
+        type: string
+        enum: ["active", "stopped", "revoked", "terminated", "expired"]
+        description: "接続の状態。active 以外ではゲートを通さない"
+      valid_until:
+        type: string
+        description: "ISO 8601。declaration.connection_valid_until と、委譲がある場合は delegation.expires_at のうち早い方"
+      previous_handshake_id:
+        type: string
+        description: "狭めた再 OFFER の場合、元のハンドシェイクの ID"
+      deletions:
+        type: array
+        items: { $ref: "#/definitions/deletion" }
+
+  ##########################################################
+  # 4.5 削除要求の状態
+  ##########################################################
+  deletion:
+    type: object
+    required: [request_id, status, requested_at]
+    properties:
+      request_id:   { type: string }
+      requested_at: { type: string, description: "ISO 8601" }
+      status:
+        type: string
+        enum: ["requested", "declared_complete", "verified", "no_response"]
+        description: >
+          requested: 本人側が削除を要求した /
+          declared_complete: 外部 AI が完了を宣言した（履行は未検証）/
+          verified: 検証方法により完了を確認した（検証方法は未決）/
+          no_response: 期限内に宣言がない
+          強制できたかのように扱わない。declared_complete は verified ではない。
+      declared_at:  { type: string }
+      verified_at:  { type: string }
+      verification_method:
+        type: string
+        description: "未決（LVC と共通の未決事項）"
+
+  ##########################################################
+  # プロファイルの REJECT（Core の REJECT に付す理由）
+  ##########################################################
+  life_reject:
+    type: object
+    required: [handshake_id, reason]
+    properties:
+      handshake_id: { type: string }
+      reason:
+        type: string
+        enum:
+          - "declaration_missing"        # 宣言の欠落
+          - "purpose_mismatch"           # 目的が本人の許可と一致しない
+          - "exceeds_upper_limit"        # LCS がこの接続について返す上限を超える開示要求
+          - "exceeds_person_consent"     # 本人の許可を超える要求
+          - "intervention_not_permitted" # IB 設定を超える介入レベル・起動条件
+          - "retention_not_permitted"    # 保持期間が本人の許可を超える
+          - "secondary_use_declared"     # 二次利用の宣言
+          - "consent_on_hold"            # 選択できない状況が疑われ保留
+          - "connection_not_permitted"   # 本人が接続を許可していない
+          - "core_check_failed"          # Core の必須チェックに失敗
+      counter_offer:
+        description: >
+          拘束力のない縮小案。外部 AI はこれに沿った新しいハンドシェイクで再 OFFER できる。
+          counter_offer は合意ではない。
+        $ref: "#/definitions/declaration"
+
+  ##########################################################
+  # REVERSE の理由コード（Core の reversal_signal.events[].payload.reason に入れる）
+  ##########################################################
+  reverse_reason:
+    type: string
+    enum:
+      - "person_stop"         # 接続の停止（type = authority_revoked）
+      - "person_revoke"       # 許可の取消（type = authority_revoked）
+      - "person_terminate"    # 終結（type = authority_revoked）
+      - "delegation_expired"  # 委譲の期限切れ（type = authority_revoked）
+      - "delegation_revoked"  # 委譲の取り消し条件の成立（type = authority_revoked）
+      - "deletion_request"    # 削除要求（type = authority_revoked、life_profile.deletions を添える）
+    description: >
+      Core の payload.reason は自由記述の文字列であり、本列挙はその値の取り方を狭めるだけで
+      Core の reversal_signal.events[].type の列挙は変えない。
+
+  ##########################################################
+  # 4.6 L3 に記録するための事実
+  ##########################################################
+  life_record:
+    type: object
+    required: [event, handshake_id, counterparty, recorded_at]
+    properties:
+      event:
+        type: string
+        enum:
+          - "hello"
+          - "offer"
+          - "accept"
+          - "reject"
+          - "reverse"
+          - "disclosure"          # 開示ゲートを通過し開示した
+          - "proposal_received"   # 外部 AI から提案を受け取った
+          - "gate_denied"         # ゲートで拒否した
+          - "grant_expired"
+          - "deletion_status_changed"
+      handshake_id:          { type: string }
+      previous_handshake_id: { type: string }
+      counterparty:
+        type: object
+        required: [agent_id, provider]
+        properties:
+          agent_id: { type: string }
+          provider: { type: string }
+      declaration_digest:
+        type: string
+        description: "OFFER 時の life_profile.declaration の正規化ハッシュ（json_c14n）"
+      declaration:
+        $ref: "#/definitions/declaration"
+      agreed:
+        $ref: "#/definitions/grant"
+      disclosed:
+        type: object
+        description: "event=disclosure のとき、実際に開示した層・段階・項目"
+        properties:
+          layer: { $ref: "#/definitions/lcs_layer" }
+          stage: { $ref: "#/definitions/disclosure_stage" }
+          items: { type: array, items: { type: string } }
+      reason:
+        type: string
+        description: "reject / reverse / gate_denied の理由コード"
+      revocation_state:
+        type: string
+        enum: ["none", "stopped", "revoked", "terminated"]
+      deletion:
+        $ref: "#/definitions/deletion"
+      assertion_source:
+        type: string
+        enum: ["declared_by_counterparty", "observed_by_person_side", "verified"]
+        description: "宣言と履行を区別するための出所"
+      event_time:  { type: string, description: "CCP メッセージの timestamp（ISO 8601）" }
+      recorded_at: { type: string, description: "本人側で記録した時刻（ISO 8601）" }
+
+############################################################
+# Core ハンドシェイク文書に追加する拡張オブジェクト
+############################################################
+type: object
+required: [life_profile]
+properties:
+  life_profile:
+    type: object
+    required: [profile, version, declaration]
+    properties:
+      profile:
+        type: string
+        const: "ccp-life"
+      version:
+        type: string
+        description: "本プロファイルのバージョン（現在 0.3）"
+      declaration:
+        $ref: "#/definitions/declaration"
+      previous_handshake_id:
+        type: string
+        description: "counter_offer に沿って再 OFFER する場合、元のハンドシェイクの ID"
+      deletions:
+        type: array
+        description: "REVERSE（payload.reason = deletion_request ほか）に添える削除要求"
+        items: { $ref: "#/definitions/deletion" }
