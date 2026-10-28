@@ -532,7 +532,7 @@ This profile satisfies all requirements without changing Core (including workaro
 | CP-3 | Specify the connection's validity after ACCEPT and the position of REVERSE after ACCEPT | Core's Termination declares success when the ACCEPT signature verifies, without defining how long the connection lasts. REVERSE follows ACCEPT in the state sequence, but post-ACCEPT handling is not explicit | `connection_valid_until` and `grant` defined in the extension |
 | CP-4 | Finer `reversal_signal.events[].type` (stop, revoke, terminate, deletion request) | Currently expressed by `authority_revoked` + `payload.reason` | Reason code in `payload.reason` |
 
-For reference (an observed Core inconsistency; not changed): in `specs/handshake.yaml`, `meta.version` is `2.1` but `schema_definition.version` in the same file is still `2.0`.
+For reference (an observed Core inconsistency): in `specs/handshake.yaml`, `schema_definition.version` was still `2.0`, out of step with `meta.version` (`2.1`). It has been aligned to `2.1` as a label-only fix (schema content unchanged).
 
 ---
 

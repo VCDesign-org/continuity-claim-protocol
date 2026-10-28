@@ -54,7 +54,7 @@ properties:
     properties:
       id:        { type: string }
       version:   { type: string }
-      description:{ type: string }
+      description: { type: string }
 
   ############################################################
   # 3. Agent (AI 自己申告プロファイル)
@@ -103,7 +103,7 @@ properties:
           properties:
             type:     { type: string }
             issuer:   { type: string }
-            reference:{ type: string }
+            reference: { type: string }
 
   ############################################################
   # 5. Interface (I/O + 意味範囲)
@@ -277,7 +277,7 @@ properties:
         properties:
           responsibility_id: { type: string }
           meaning_scope:     { type: string }
-          context_assumption:{ type: string }
+          context_assumption: { type: string }
 
       signature_schema:
         type: object
