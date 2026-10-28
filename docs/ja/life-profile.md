@@ -533,7 +533,7 @@ L3 の内容は外部に開示しない（LCS の既定の上限 D0）。
 | CP-3 | ACCEPT 後の接続の有効期間と、ACCEPT 後の REVERSE の位置づけの明記 | Core の Termination は「ACCEPT の署名検証に成功した時点で成功」とし、接続が続く期間を定めていない。REVERSE は状態遷移上 ACCEPT の後に置かれているが、ACCEPT 後の扱いが明記されていない | `connection_valid_until` と `grant` を拡張で定義 |
 | CP-4 | `reversal_signal.events[].type` の細分化（停止・取消・終結・削除要求） | 現在は `authority_revoked` と `payload.reason` の組で表している | `payload.reason` に理由コードを入れる |
 
-参考（Core の不整合の観測。変更はしていない）：`specs/handshake.yaml` の `meta.version` は `2.1` だが、同ファイル内の `schema_definition.version` は `2.0` のままである。
+参考（Core の不整合の観測）：`specs/handshake.yaml` の `schema_definition.version` が `2.0` のままで `meta.version`（`2.1`）とずれていた。表記のみの修正として `2.1` に揃えた（スキーマの内容は変えていない）。
 
 ---
 
