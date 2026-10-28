@@ -215,6 +215,10 @@ CCP Handshake は **責任と境界の連続性を保証するための最小プ
    → なぜ安全なのか理解する
 
 
+### プロファイル（Core の上に乗る適用層）
+
+- **docs/ja/life-profile.md**（Draft 0.1）
+  → CCP を「本人と外部 AI の接続」に適用する CCP ライフプロファイル。拡張スキーマは `schemas/life-profile.schema.yaml`。Core の意味は変更しない。
 
 ---
 
