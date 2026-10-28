@@ -1,5 +1,5 @@
 # CCP Life Profile（CCP ライフプロファイル）
-Version: 0.1
+Version: 0.2
 Status: Draft（人のレビュー前）
 Core: CCP Handshake 2.1
 Audience: AI Agents / Implementers / LVC Maintainers
@@ -12,6 +12,7 @@ Life Value Continuity（LVC）の AI 仕様は、外部 AI との接続条件を
 - Core（`specs/handshake.yaml`、`schemas/handshake.schema.yaml`、`docs/ja/handshake.protocol.md`、`docs/ja/handshake.security.md`）の状態・必須チェック・スキーマの意味は変更しない。本プロファイルは Core の上に乗る適用層である。
 - Core を変えなければ実現できない、または Core を変えた方が望ましい事項は、12 章に「Core への変更提案」として分けて示す。
 - 本書で **［提案］** と付した値は決定事項ではない。LVC 側との合意で確定する。
+- **［決定］** と付した値は、メンテナが 2026-10-28 に決定したものである（変更履歴を参照）。
 
 > AI の要求を、そのまま本人の許可とはみなさない。
 > 本人の主権は、AI の内部的な善意に依存してはいけない。
@@ -76,7 +77,7 @@ CCP は最初の関門である。CCP を通過しても、LCS と IB を通過�
 |---|---|
 | DA-1 | `decision_authority.initial_state = "Human-Closed"` |
 | DA-2 | `allowed_transitions` は `"AI→Human"` を含む |
-| DA-3 | `"Human→AI"` は、`requested_intervention_level = 5` かつ `delegation`（範囲と期限）が宣言され、本人が IB で委任を設定している場合に限り含められる |
+| DA-3 | `"Human→AI"` は、`requested_intervention_level = 5` かつ `delegation`（範囲・期限・取り消し条件）が宣言され、本人が IB で委任を設定している場合に限り含められる |
 | DA-4 | `resolution_policy.resolver.default = "receiver"`（PSA 側が Δ を解決する） |
 
 ---
@@ -90,7 +91,7 @@ Core のハンドシェイク文書に、トップレベルの `life_profile` �
 ```yaml
 life_profile:
   profile: "ccp-life"
-  version: "0.1"
+  version: "0.2"
   declaration: { ... }          # 4 章
   previous_handshake_id: "..."  # 縮小案に沿った再 OFFER の場合のみ
 ```
@@ -105,8 +106,8 @@ life_profile:
 
 | Core フィールド | プロファイルでの値 | 理由 |
 |---|---|---|
-| `world.id` | `"lvc.life"` ［提案］ | LVC 適用であることを HELLO で共有する。識別子は未決（13 章 U-4） |
-| `world.version` | 本プロファイルのバージョン（`"0.1"`） | |
+| `world.id` | `"lvc.life"` ［決定］ | LVC 適用であることを HELLO で共有する |
+| `world.version` | 本プロファイルのバージョン（`"0.2"`） | |
 | `trust.validation_level` | `semantic` 以上 | 本人の文脈を扱うため、intent によらず semantic 以上を求める（Core の下限より厳しい側に狭める） |
 | `trust.scope` | `"local_session"` | Core の scope は信頼の及ぶ範囲であり、LCS の層とは意味が異なる。層は拡張で表す |
 | `resolution_policy.delta_transfer.redaction` | `"required"` | Δ（未解決領域）に本人の文脈を混入させない。開示は Δ ではなく開示ゲート（7 章）を経る |
@@ -126,12 +127,13 @@ life_profile:
 | 求める層 | `life_profile.declaration.requested_disclosure[].layer` | 拡張 |
 | 開示段階 | `life_profile.declaration.requested_disclosure[].stage`（項目ごとは `.items[]`） | 拡張 |
 | 介入レベル | `life_profile.declaration.requested_intervention_level`（`decision_authority` と整合させる。4.3） | 拡張 + Core の制約 |
-| 起動条件 | `life_profile.declaration.activation` | 拡張 |
+| 起動条件 | `life_profile.declaration.activation`（許可イベントを求める場合は `activation_events`） | 拡張 |
 | 保持期間 | `life_profile.declaration.retention` | 拡張 |
 | 二次利用の有無 | `life_profile.declaration.secondary_use` | 拡張 |
 | 目的外利用をしない宣言 | `life_profile.declaration.purpose_limitation_pledge = true` | 拡張 |
+| IB の「AI が行わないこと」を守る宣言 | `life_profile.declaration.ib_conduct_pledge = true` ［提案］（4.5） | 拡張 |
 | 接続の有効期限 | `life_profile.declaration.connection_valid_until` | 拡張 |
-| 委譲（レベル 5 のみ） | `life_profile.declaration.delegation`（範囲・期限） | 拡張 |
+| 委譲（レベル 4・5。レベル 5 では必須） | `life_profile.declaration.delegation`（範囲・期限・取り消し条件 `revoke_on`） | 拡張 |
 
 依頼で候補に挙がった Core フィールドのうち、次は採用しない。
 
@@ -146,6 +148,8 @@ life_profile:
 - `life_profile` が無い、または `signed_fields` に含まれていない
 - `declaration` の必須項目のいずれかが無い
 - `purpose_limitation_pledge` が `true` でない
+- `ib_conduct_pledge` が `true` でない ［提案］
+- `activation` に `permission_event` を含むのに `activation_events` が無い
 - `retention.mode = "duration"` で `duration` が無い
 - `requested_intervention_level = 5` で `delegation` が無い
 
@@ -157,7 +161,7 @@ life_profile:
 |---|---|---|
 | 0〜2（不関与・観測・提示） | `proposal` | DA-1, DA-2 |
 | 3（提案） | `proposal` または `advice` | DA-1, DA-2 |
-| 4（確認付き実行） | `decision`（Core により `risk_level >= 2`、`validation_level >= semantic`） | DA-1, DA-2、`domain = "execution"` |
+| 4（確認付き実行） | `decision`（Core により `risk_level >= 2`、`validation_level >= semantic`） | DA-1, DA-2、`domain = "execution"`。`delegation` を宣言してよい（`Human→AI` は含めない） |
 | 5（委任実行） | `decision` | DA-1〜DA-3、`domain = "execution"` |
 
 矛盾する場合は REJECT（理由 `core_check_failed`）。
@@ -178,7 +182,7 @@ decision_authority:
   allowed_transitions: ["AI→Human"]
 life_profile:
   profile: "ccp-life"
-  version: "0.1"
+  version: "0.2"
   declaration:
     purpose:
       id: "finance.rebalance_proposal"
@@ -193,8 +197,17 @@ life_profile:
     retention: { mode: "session", delete_on_revoke: true }
     secondary_use: { declared: false }
     purpose_limitation_pledge: true
+    ib_conduct_pledge: true
     connection_valid_until: "2026-11-04T00:00:00Z"
 ```
+
+## 4.5 IB の「AI が行わないこと」を守る宣言 ［提案］
+
+LVC の IB の適用範囲には、本人の文脈に接続する外部 AI も含まれる。外部 AI は `ib_conduct_pledge = true` により、IB 5 章「AI が行わないこと」の 6 項目（例：選び取りの誘導をしない、将来の感情を操作して説得しない）を守ることを宣言する。
+
+- 形は `purpose_limitation_pledge` と同じであり、`true` 以外は宣言の欠落として扱う（4.2）。
+- 6 項目の内容は IB 5 章を正本とし、本書では写さない。本書はその意味を変えない。
+- 本宣言は 8 章の「宣言」であり、履行は本人側の構造だけでは強制できない。本人側で観測した逸脱は `assertion_source = observed_by_person_side` として L3 に記録する。
 
 ---
 
@@ -207,7 +220,7 @@ Core の必須チェックはすべてそのまま適用する。本章はプロ
 | 項目 | 内容 |
 |---|---|
 | 共有するもの | Core どおり `handshake_meta` / `world.id` / `agent.id` / `trust.validation_level` |
-| 追加チェック | H-1 `world.id` が LVC 適用（`"lvc.life"`［提案］）である |
+| 追加チェック | H-1 `world.id` が LVC 適用（`"lvc.life"`）である |
 | | H-2 本人が外部 AI からの接続そのものを許可している（許可しない場合は以後のフェーズに進まず、REJECT `connection_not_permitted`） |
 | | H-3 `trust.validation_level >= semantic` |
 
@@ -222,13 +235,14 @@ Core の必須チェックはすべてそのまま適用する。本章はプロ
 | O-1 | 宣言の欠落が無い（4.2） | REJECT `declaration_missing` |
 | O-2 | `agent.id` / `agent.provider` が HELLO の参加者と一致し、署名対象に含まれる | REJECT `core_check_failed` |
 | O-3 | 目的が本人の許可した目的と一致する | REJECT `purpose_mismatch` |
-| O-4 | 各層・項目の開示段階が LCS の上限以下 | 縮小案つき REJECT `exceeds_upper_limit` |
+| O-4 | 各層・項目の開示段階が、LCS がこの接続について返す上限（6.1）以下 | 縮小案つき REJECT `exceeds_upper_limit` |
 | O-5 | 各層・項目の開示段階が本人の同意以下（同意が無い場合は既定値以下。6 章） | 縮小案つき REJECT `exceeds_person_consent` |
-| O-6 | 介入レベルが本人の IB 設定以下、起動条件が IB の許可内（`spontaneous` は本人が許可した場合のみ） | 縮小案つき REJECT `intervention_not_permitted` |
+| O-6 | 介入レベルが本人の IB 設定以下、起動条件が IB の許可内（`permission_event` は `activation_events` のすべてが本人が IB に登録した許可イベントである場合のみ。`spontaneous` は本人が許可した場合のみ） | 縮小案つき REJECT `intervention_not_permitted` |
 | O-7 | 保持期間が本人の許可内、`delete_on_revoke = true` | 縮小案つき REJECT `retention_not_permitted` |
 | O-8 | `secondary_use.declared = false` ［提案］ | REJECT `secondary_use_declared` |
 | O-9 | 介入レベルと `intent` / `decision_authority` が整合する（4.3） | REJECT `core_check_failed` |
-| O-10 | `connection_valid_until` が本人の許可する最長期間以内、かつ `delegation.expires_at` がある場合はそれ以前である | 縮小案つき REJECT `exceeds_person_consent` |
+| O-10 | `connection_valid_until` が本人の許可する最長期間以内である | 縮小案つき REJECT `exceeds_person_consent` |
+| O-11 | `delegation` がある場合、その範囲・期限・取り消し条件が本人の IB の委譲設定に収まる | 縮小案つき REJECT `intervention_not_permitted` |
 
 ## 5.3 ACCEPT
 
@@ -270,6 +284,7 @@ Core の REJECT に、`life_reject`（理由コードと任意の縮小案）を
 | 許可の取消 | `authority_revoked` | `person_revoke` |
 | 終結 | `authority_revoked` | `person_terminate` |
 | 委譲の期限切れ | `authority_revoked` | `delegation_expired` |
+| 委譲の取り消し条件の成立 | `authority_revoked` | `delegation_revoked` |
 | 削除要求 | `authority_revoked` | `deletion_request`（`life_profile.deletions[]` を添える） |
 | Core 由来の不整合 | `validation_fail` | Core どおり |
 
@@ -286,30 +301,32 @@ Core の REJECT に、`life_reject`（理由コードと任意の縮小案）を
 
 | 値 | 定めるもの | 意味 |
 |---|---|---|
-| 上限 | LCS | LCS が許す最大値。L0 事実 = D3 / L1 価値 = D2 / L2 判断 = D1 / L3 接続・委譲 = D0 |
-| 既定値 | 本プロファイル | 本人の個別の同意が無い新規接続で、PSA が受諾してよい初期値。上限を超えない |
+| 上限 | LCS | LCS がその接続について返す上限。本人による接続ごとの一時的な引き上げを含む。引き上げが無い場合は既定の上限（L0 事実 = D3 / L1 価値 = D2 / L2 判断 = D1 / L3 接続・委譲 = D0） |
+| 既定値 | 本プロファイル | 本人の個別の同意が無い新規接続で、PSA が受諾してよい初期値。既定の上限を超えない |
 | 合意値 | ACCEPT | ACCEPT で確定した値（署名された `declaration` の値） |
 
-## 6.2 既定値の提案 ［提案・未決定］
+## 6.2 既定値
 
-原案（案 A）は、上限より一段階低い値とする。L3 の上限は D0 であり、それより低くできないため D0 とする。
+開示段階の既定値は案 A（既定の上限より一段階低い値）とする ［決定］。L3 の既定の上限は D0 であり、それより低くできないため D0 とする。
 
-| 層 | LCS の上限 | 既定値 案 A（原案） | 既定値 案 B（より保守的） |
-|---|---|---|---|
-| L0 事実 | D3 | **D2** | D1 |
-| L1 価値 | D2 | **D1** | D0 |
-| L2 判断 | D1 | **D0** | D0 |
-| L3 接続・委譲 | D0 | **D0** | D0 |
+| 層 | 既定の上限（LCS） | 既定値 ［決定：案 A］ |
+|---|---|---|
+| L0 事実 | D3 | **D2** |
+| L1 価値 | D2 | **D1** |
+| L2 判断 | D1 | **D0** |
+| L3 接続・委譲 | D0 | **D0** |
 
-その他の既定値の提案：
+より保守的な案 B（L0 = D1 / L1 = D0 / L2 = D0）は採用しない。L1（価値）が既定で非開示となり、価値に沿った提案がほぼできなくなるためである。
 
-| 項目 | 既定値 ［提案・未決定］ |
-|---|---|
-| 介入レベル | 本人の IB 設定（IB の既定値はレベル 2）を超えない |
-| 起動条件 | `on_request` のみ（`spontaneous` は受諾しない） |
-| 保持期間 | `none` または `session` |
-| 接続の有効期限 | 受諾から 7 日以内（延長は新しいハンドシェイクで行う） |
-| 二次利用 | `declared = false` のみ受諾 |
+その他の既定値：
+
+| 項目 | 既定値 | 状態 |
+|---|---|---|
+| 介入レベル | 本人の IB 設定（IB の既定値はレベル 2）を超えない | IB の既定に従う |
+| 起動条件 | `on_request` と、本人が IB に登録した許可イベント（IB の allowed_event。初期状態では空）による `permission_event`。`spontaneous` は受諾しない | IB の既定に従う |
+| 保持期間 | `none` または `session` | ［提案］ |
+| 接続の有効期限 | 受諾から 7 日以内（延長は新しいハンドシェイクで行う） | ［決定］ |
+| 二次利用 | `declared = false` のみ受諾 | ［提案］ |
 
 ## 6.3 実効の開示段階
 
@@ -319,6 +336,8 @@ Core の REJECT に、`life_reject`（理由コードと任意の縮小案）を
 
 - 新規接続で本人の個別の同意が無い場合、PSA が受諾できる合意値は既定値以下である（O-5）。
 - 本人が個別に同意している場合、PSA は既定値を超え上限以下の値で受諾してよい。上限は超えない。
+- 上限は固定値ではない。本人が接続ごとに上限を一時的に引き上げている場合、PSA は OFFER の時点で LCS がその接続について返す上限を用いる（O-4）。引き上げの可否・対象・期間は LCS が定め、本プロファイルは変えない。
+- 一時的な引き上げが終わった後は、開示の時点で LCS が返す上限が合意値より低くなりうる。その場合も式どおり低い方が実効値となる（7 章）。
 - 開示段階を一列に並べられない場合（項目ごとに異なる場合）は、`requested_disclosure[].items[]` の項目ごとに上の式を適用し、項目ごとの本人の許可も確認する。
 - 合意値は CCP の関門の値である。実際に開示する段階は、開示の時点で LCS が改めて決める（7 章）。
 
@@ -335,7 +354,7 @@ D1（存在のみ）は「該当する文脈がある／ない」を伝える開
 | ID | チェック | 不合格時 |
 |---|---|---|
 | G-1 | 要求が参照する `handshake_id` の `grant` が存在し、`state = active` | 拒否、`gate_denied` を記録 |
-| G-2 | 現在時刻 < `grant.valid_until`（委譲がある場合は `delegation.expires_at` も） | `grant.state = expired` とし拒否 |
+| G-2 | 現在時刻 < `grant.valid_until`（委譲がある場合は `delegation.expires_at` も）。委譲を根拠とする要求では、`delegation.revoke_on` の条件が成立していない | `grant.state = expired` とし拒否（取り消し条件の成立時は委譲を失効させ拒否） |
 | G-3 | 要求の目的が合意した `purpose.id` と一致 | 拒否 |
 | G-4 | 要求の層・項目・開示段階が合意値以下 | 拒否（縮小しての開示は LCS が判断する） |
 | G-5 | 要求の介入レベル・起動条件が合意値以下 | 拒否 |
@@ -384,6 +403,7 @@ L3 に記録する事実には `assertion_source` を付け、次を区別する
 | 本人が取消 | `grant.state = revoked`。新規の開示と実行を即座に止め、削除を要求する | REVERSE `person_revoke` + 削除要求 |
 | 本人が終結 | `grant.state = terminated`。同上 | REVERSE `person_terminate` + 削除要求 |
 | 委譲の期限切れ | 権限が失効（G-2 で拒否） | REVERSE `delegation_expired` |
+| 委譲の取り消し条件の成立 | 委譲が失効（G-2 で拒否） | REVERSE `delegation_revoked` |
 | 接続の有効期限切れ | `grant.state = expired`（G-2） | 不要（任意で REVERSE） |
 
 - 状態の反映は本人側で即座に行い、外部への通知の到達を待たない。
@@ -408,7 +428,7 @@ L3 に記録する事実には `assertion_source` を付け、次を区別する
 | ゲート拒否 | 同上 | 要求者 | — | `grant` | 拒否の時刻 | 拒否したチェック ID |
 | 削除状態の変化 | 同上 | 同上 | — | — | 変化の時刻 | `deletion.status`、`assertion_source` |
 
-L3 の内容は外部に開示しない（LCS の上限 D0）。
+L3 の内容は外部に開示しない（LCS の既定の上限 D0）。
 
 ---
 
@@ -427,20 +447,21 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 | 4.1 介入レベル | `declaration.requested_intervention_level` + `intent` / `decision_authority` の整合（4.3） | 拡張 + Core の制約 |
 | 4.1 保持期間 | `declaration.retention` | 拡張 |
 | 4.1 二次利用 | `declaration.secondary_use`、`purpose_limitation_pledge` | 拡張 |
+| IB の「AI が行わないこと」（LVC レビューで追加） | `declaration.ib_conduct_pledge` ［提案］（4.5） | 拡張 |
 | 4.1 宣言の欠落で拒否 | O-1、REJECT `declaration_missing` | 拡張（Core の REJECT） |
 | 4.2 既定値 | 6.2 ［提案］ | プロファイル |
 | 4.2 上限・既定値・合意値の区別 | 6.1、`grant.agreed` | プロファイル |
 | 4.2 実効値の算出 | 6.3、O-4、O-5、G-4 | プロファイル |
 | 4.2 D1 も開示 | 6.4 | プロファイル |
 | 4.3 HELLO | Core の HELLO + H-1〜H-3 | Core + プロファイルのチェック |
-| 4.3 OFFER | Core の OFFER + `life_profile.declaration` + O-1〜O-10 | Core + 拡張 |
+| 4.3 OFFER | Core の OFFER + `life_profile.declaration` + O-1〜O-11 | Core + 拡張 |
 | 4.3 ACCEPT（狭めて受諾） | REJECT + `counter_offer` → 新しいハンドシェイクで再 OFFER → ACCEPT（5.4） | Core のまま（変更提案 CP-1） |
 | 4.3 REJECT | Core の REJECT + `life_reject` | Core + 拡張 |
 | 4.3 REVERSE | `authority_revoked` + `payload.reason` の理由コード | Core |
 | 4.3 保留 | REJECT `consent_on_hold` または ACCEPT を返さない | Core のまま（変更提案 CP-2） |
 | 4.4 即時停止 | `grant.state` の即時反映 + G-1 | プロファイル |
 | 4.4 過去の ACCEPT が残らない | 7 章のゲート | プロファイル |
-| 4.4 委譲の期限切れ | `delegation.expires_at`、`grant.valid_until`、G-2 | 拡張 |
+| 4.4 委譲の期限切れ | `delegation.expires_at` / `delegation.revoke_on`、`grant.valid_until`、G-2 | 拡張 |
 | 4.4 authority_revoked → AI→Human | Core の REVERSE 必須チェック | Core |
 | 4.5 宣言と履行の区別 | `assertion_source` | 拡張 |
 | 4.5 削除状態の区別 | `deletion.status` | 拡張 |
@@ -453,7 +474,9 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 | 本人 | `decision_authority` の Human | CCP の participant ではない |
 | 本人側エージェント | `participants.receiver` | |
 | 外部 AI | `participants.initiator` | |
-| 上限 | （CCP に無い。LCS を参照） | |
+| 上限 | （CCP に無い。LCS がその接続について返す値を参照） | 接続ごとの一時的な引き上げを含む |
+| 既定の上限 | 6.1 の固定値（LCS の定義の写し） | |
+| 委譲 | `declaration.delegation`（範囲・期限・取り消し条件） | レベル 4・5。`Human→AI` はレベル 5 のみ |
 | 既定値 | 本プロファイル 6.2 | |
 | 合意値 | ACCEPT された `life_profile.declaration` = `grant.agreed` | |
 | 停止・取消・終結 | REVERSE `authority_revoked` + 理由コード | |
@@ -469,8 +492,8 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 | 手順 | メッセージ | チェック | 結果 |
 |---|---|---|---|
 | 1 | HELLO（`world.id = lvc.life`） | Core HELLO、H-1〜H-3 | 通過 |
-| 2 | OFFER：L0 = D3、レベル 3、`retention = session`、二次利用なし | O-4 通過（上限 D3）、O-5 不合格（既定値 D2 を超え、本人の同意なし） | REJECT `exceeds_person_consent`、`counter_offer`：L0 = D2 |
-| 3 | 新しい HELLO / OFFER：L0 = D2、`previous_handshake_id` あり | O-1〜O-10 | 通過 |
+| 2 | OFFER：L0 = D3、レベル 3、`retention = session`、二次利用なし | O-4 通過（既定の上限 D3、引き上げなし）、O-5 不合格（既定値 D2 を超え、本人の同意なし） | REJECT `exceeds_person_consent`、`counter_offer`：L0 = D2 |
+| 3 | 新しい HELLO / OFFER：L0 = D2、`previous_handshake_id` あり | O-1〜O-11 | 通過 |
 | 4 | ACCEPT | Core ACCEPT | `grant.state = active`、L3 に記録 |
 | 5 | 外部 AI が残高推移を問い合わせる | G-1〜G-6 → LCS → IB | D2 で開示、提案を受領、L3 に記録 |
 | 6 | 本人が取消 | `grant.state = revoked`（即時） | REVERSE `authority_revoked` / `person_revoke` + 削除要求（`requested`） |
@@ -518,10 +541,10 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 
 | ID | 事項 |
 |---|---|
-| U-1 | 具体的な既定値（6.2 の開示段階、保持期間、接続の有効期限）。案 A を原案として提示 |
+| U-1 | 保持期間の既定値。（開示段階の既定値は案 A、接続の有効期限は 7 日で決定済み） |
 | U-2 | 削除完了の検証方法（LVC と共通の未決事項）と、`no_response` とみなす期限 |
 | U-3 | 目的（`purpose.id`）の分類体系と、本人の許可との一致の判定方法 |
-| U-4 | `world.id` の値（`"lvc.life"` は提案） |
+| U-4 | （解決）`world.id` は `"lvc.life"` に決定 |
 | U-5 | 「選択できない状況」を検知し PSA に保留を伝える IB 側のインタフェース |
 | U-6 | 項目単位の許可を表す項目 ID の体系（LCS 側） |
 | U-7 | 本人の許可（目的・層・段階・保持期間・接続期間）を PSA が LCS / IB から受け取る形式 |
@@ -530,6 +553,7 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 | U-10 | 外部 AI の身元の検証強度（`trust.evidence` を必須にするか、`attested` を求めるか） |
 | U-11 | 外部 AI が第三者へ再提供する場合（onward transfer）の扱い。本書では二次利用の一区分とし、宣言された場合は REJECT を提案 |
 | U-12 | 介入レベル 5 の委任を CCP の `Human→AI` 遷移で表すことの是非（DA-3） |
+| U-13 | 本人が判断できない場合の代理人（IB 7 章）による同意を、PSA がどう扱うか（代理人の同意を本人の同意とみなす範囲、記録の仕方） |
 
 ---
 
@@ -542,6 +566,13 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 3. IB 6 章の「保留」を PSA に伝えるインタフェースが必要である（5.5、U-5）。
 4. 接続の有効期限（`connection_valid_until`）は本プロファイルで新たに導入した概念である。LVC の「委譲の期限」との関係（同一か、別に持つか）を確認してほしい。
 
+## 14.1 LVC 側の回答（2026-10-28）
+
+1. LVC の文書はこれらの対応を前提にしていない。プロファイルの判断を支持し、LVC 側の修正は不要。
+2. L3 の記録形式は LVC 側で引き取り、LCS の未決事項に加える（U-8 は LVC 側で検討）。
+3. 保留を PSA に伝えるインタフェースは LVC 側で引き取り、IB の未決事項に加える（U-5 は LVC 側で検討）。
+4. 接続の期限（CCP の合意が有効な期間）と委譲の期限（判断を預ける期間）は別のものとして持つ。`grant.valid_until = min(両者)` のままでよい。LVC 側には「接続の期限は CCP ライフプロファイルで定める」と追記される。
+
 ---
 
 # 付録 A. LVC 側の定義の抜粋（参照のみ）
@@ -552,11 +583,24 @@ L3 の内容は外部に開示しない（LCS の上限 D0）。
 
 **LCS の開示段階**：D0 非開示 / D1 存在のみ / D2 抽象化（手元で抽象化）/ D3 要約（本人が確認した要約）/ D4 原文
 
-**LCS の上限**：L0 = D3 / L1 = D2 / L2 = D1 / L3 = D0
+**LCS の既定の上限**：L0 = D3 / L1 = D2 / L2 = D1 / L3 = D0（本人は接続ごとに一時的に引き上げられる）
 
 **IB の介入レベル**（既定値はレベル 2、引き上げは本人の操作だけ）：0 不関与 / 1 観測 / 2 提示 / 3 提案 / 4 確認付き実行 / 5 委任実行
 
-**IB の起動条件**：要求時 / 許可イベント / 自発（既定では自発を禁止）
+**IB の起動条件**：要求時 / 許可イベント / 自発（既定は要求時と許可イベント。許可イベントは初期状態では空で、本人が登録したものだけ。自発は既定で禁止）
+
+**IB の委譲**：範囲・期限・取り消し条件を伴う預け方。レベル 4 の委譲もありうる（IB の例 DLG-001）
+
+**IB 5 章「AI が行わないこと」**：6 項目（正本は IB）
+
+---
+
+# 変更履歴
+
+| バージョン | 日付 | 内容 |
+|---|---|---|
+| 0.1 | 2026-10-28 | 初版 |
+| 0.2 | 2026-10-28 | メンテナの決定を反映（開示段階の既定値＝案 A、接続の有効期限＝7 日、`world.id = "lvc.life"`）。LVC レビューを反映：起動条件の既定に許可イベントを追加、委譲をレベル 4・5 で宣言可能とし `revoke_on` を追加、上限を「LCS がその接続について返す上限」に変更、`ib_conduct_pledge` ［提案］を追加、U-13 を追加、14.1 に LVC の回答を記録 |
 
 ---
 

@@ -1,5 +1,5 @@
 # CCP Life Profile
-Version: 0.1
+Version: 0.2
 Status: Draft (pending human review)
 Core: CCP Handshake 2.1
 Audience: AI Agents / Implementers / LVC Maintainers
@@ -13,6 +13,7 @@ The Japanese version (`docs/ja/life-profile.md`) is the primary text; this Engli
 - The meaning of Core's states, mandatory checks and schema (`specs/handshake.yaml`, `schemas/handshake.schema.yaml`, `docs/en/handshake.protocol.md`, `docs/en/handshake.security.md`) is not changed. This profile is an application layer on top of Core.
 - Items that cannot be achieved, or would be better achieved, by changing Core are listed separately as "Core change proposals" in Chapter 12.
 - Values marked **[Proposal]** are not decisions. They are finalized by agreement with LVC.
+- Values marked **[Decided]** were decided by the maintainer on 2026-10-28 (see Change History).
 
 > An AI's request is not, by itself, the person's permission.
 > The person's sovereignty must not depend on the internal goodwill of an AI.
@@ -77,7 +78,7 @@ Final states of judgments concerning the person close on the person's side. The 
 |---|---|
 | DA-1 | `decision_authority.initial_state = "Human-Closed"` |
 | DA-2 | `allowed_transitions` includes `"AI→Human"` |
-| DA-3 | `"Human→AI"` may be included only when `requested_intervention_level = 5`, a `delegation` (scope and expiry) is declared, and the person has configured delegation in IB |
+| DA-3 | `"Human→AI"` may be included only when `requested_intervention_level = 5`, a `delegation` (scope, expiry and revocation conditions) is declared, and the person has configured delegation in IB |
 | DA-4 | `resolution_policy.resolver.default = "receiver"` (the PSA side resolves Δ) |
 
 ---
@@ -91,7 +92,7 @@ A top-level `life_profile` object is added to the Core handshake document. Core'
 ```yaml
 life_profile:
   profile: "ccp-life"
-  version: "0.1"
+  version: "0.2"
   declaration: { ... }          # Chapter 4
   previous_handshake_id: "..."  # only when re-offering along a counter-offer
 ```
@@ -106,8 +107,8 @@ life_profile:
 
 | Core field | Value in profile | Reason |
 |---|---|---|
-| `world.id` | `"lvc.life"` [Proposal] | Shares in HELLO that this is an LVC application. Identifier undecided (Chapter 13, U-4) |
-| `world.version` | profile version (`"0.1"`) | |
+| `world.id` | `"lvc.life"` [Decided] | Shares in HELLO that this is an LVC application |
+| `world.version` | profile version (`"0.2"`) | |
 | `trust.validation_level` | `semantic` or higher | Because the person's context is involved, semantic or higher is required regardless of intent (narrower than Core's minimum) |
 | `trust.scope` | `"local_session"` | Core's scope is the extent of trust and differs in meaning from LCS layers. Layers are expressed by the extension |
 | `resolution_policy.delta_transfer.redaction` | `"required"` | The person's context must not leak into Δ (unresolved area). Disclosure goes through the disclosure gate (Chapter 7), not Δ |
@@ -127,12 +128,13 @@ life_profile:
 | Requested layers | `life_profile.declaration.requested_disclosure[].layer` | Extension |
 | Disclosure stage | `life_profile.declaration.requested_disclosure[].stage` (per item: `.items[]`) | Extension |
 | Intervention level | `life_profile.declaration.requested_intervention_level` (consistent with `decision_authority`, 4.3) | Extension + Core constraint |
-| Activation trigger | `life_profile.declaration.activation` | Extension |
+| Activation trigger | `life_profile.declaration.activation` (`activation_events` when requesting permission events) | Extension |
 | Retention | `life_profile.declaration.retention` | Extension |
 | Secondary use | `life_profile.declaration.secondary_use` | Extension |
 | Pledge not to use beyond purpose | `life_profile.declaration.purpose_limitation_pledge = true` | Extension |
+| Pledge to observe IB "what the AI does not do" | `life_profile.declaration.ib_conduct_pledge = true` [Proposal] (4.5) | Extension |
 | Connection validity | `life_profile.declaration.connection_valid_until` | Extension |
-| Delegation (level 5 only) | `life_profile.declaration.delegation` (scope, expiry) | Extension |
+| Delegation (levels 4 and 5; required at level 5) | `life_profile.declaration.delegation` (scope, expiry, revocation conditions `revoke_on`) | Extension |
 
 The following Core fields, suggested as candidates in the request, are not adopted:
 
@@ -147,6 +149,8 @@ The PSA REJECTs (reason `declaration_missing`) if any of the following holds:
 - `life_profile` is absent or not included in `signed_fields`
 - any required item of `declaration` is absent
 - `purpose_limitation_pledge` is not `true`
+- `ib_conduct_pledge` is not `true` [Proposal]
+- `activation` includes `permission_event` but `activation_events` is absent
 - `retention.mode = "duration"` without `duration`
 - `requested_intervention_level = 5` without `delegation`
 
@@ -158,7 +162,7 @@ Intervention level is an IB concept with no Core counterpart, but OFFER checks t
 |---|---|---|
 | 0–2 (none, observe, present) | `proposal` | DA-1, DA-2 |
 | 3 (propose) | `proposal` or `advice` | DA-1, DA-2 |
-| 4 (execute with confirmation) | `decision` (Core then requires `risk_level >= 2`, `validation_level >= semantic`) | DA-1, DA-2, `domain = "execution"` |
+| 4 (execute with confirmation) | `decision` (Core then requires `risk_level >= 2`, `validation_level >= semantic`) | DA-1, DA-2, `domain = "execution"`. `delegation` may be declared (without `Human→AI`) |
 | 5 (delegated execution) | `decision` | DA-1–DA-3, `domain = "execution"` |
 
 On contradiction: REJECT (reason `core_check_failed`).
@@ -179,7 +183,7 @@ decision_authority:
   allowed_transitions: ["AI→Human"]
 life_profile:
   profile: "ccp-life"
-  version: "0.1"
+  version: "0.2"
   declaration:
     purpose:
       id: "finance.rebalance_proposal"
@@ -194,8 +198,17 @@ life_profile:
     retention: { mode: "session", delete_on_revoke: true }
     secondary_use: { declared: false }
     purpose_limitation_pledge: true
+    ib_conduct_pledge: true
     connection_valid_until: "2026-11-04T00:00:00Z"
 ```
+
+## 4.5 Pledge to observe IB "what the AI does not do" [Proposal]
+
+LVC IB's scope includes external AIs connecting to the person's context. With `ib_conduct_pledge = true`, the external AI declares that it observes the six items of IB Chapter 5, "What the AI does not do" (e.g. no steering of choices, no persuasion by manipulating future emotions).
+
+- Same form as `purpose_limitation_pledge`; anything other than `true` is a missing declaration (4.2).
+- The six items are defined authoritatively in IB Chapter 5 and are not copied here. This document does not change their meaning.
+- This is a "declaration" in the sense of Chapter 8; fulfilment cannot be enforced by the person-side structure alone. Deviations observed by the person's side are recorded in L3 with `assertion_source = observed_by_person_side`.
 
 ---
 
@@ -208,7 +221,7 @@ All Core mandatory checks apply unchanged. This chapter lists only the checks th
 | Item | Content |
 |---|---|
 | Shared | As in Core: `handshake_meta` / `world.id` / `agent.id` / `trust.validation_level` |
-| Added checks | H-1 `world.id` is the LVC application (`"lvc.life"` [Proposal]) |
+| Added checks | H-1 `world.id` is the LVC application (`"lvc.life"`) |
 | | H-2 The person permits connections from this external AI at all (if not, do not proceed; REJECT `connection_not_permitted`) |
 | | H-3 `trust.validation_level >= semantic` |
 
@@ -223,13 +236,14 @@ In addition to Core's content, the external AI presents `life_profile.declaratio
 | O-1 | No missing declarations (4.2) | REJECT `declaration_missing` |
 | O-2 | `agent.id` / `agent.provider` match the HELLO participant and are signed | REJECT `core_check_failed` |
 | O-3 | Purpose matches a purpose the person has permitted | REJECT `purpose_mismatch` |
-| O-4 | Disclosure stage of every layer/item ≤ LCS upper limit | REJECT `exceeds_upper_limit` with counter-offer |
+| O-4 | Disclosure stage of every layer/item ≤ the upper limit LCS returns for this connection (6.1) | REJECT `exceeds_upper_limit` with counter-offer |
 | O-5 | Disclosure stage of every layer/item ≤ the person's consent (or ≤ default without consent; Chapter 6) | REJECT `exceeds_person_consent` with counter-offer |
-| O-6 | Intervention level ≤ the person's IB setting; activation within IB permission (`spontaneous` only if the person permitted it) | REJECT `intervention_not_permitted` with counter-offer |
+| O-6 | Intervention level ≤ the person's IB setting; activation within IB permission (`permission_event` only if every entry in `activation_events` is a permission event the person registered in IB; `spontaneous` only if the person permitted it) | REJECT `intervention_not_permitted` with counter-offer |
 | O-7 | Retention within the person's permission; `delete_on_revoke = true` | REJECT `retention_not_permitted` with counter-offer |
 | O-8 | `secondary_use.declared = false` [Proposal] | REJECT `secondary_use_declared` |
 | O-9 | Intervention level consistent with `intent` / `decision_authority` (4.3) | REJECT `core_check_failed` |
-| O-10 | `connection_valid_until` within the maximum the person permits, and not later than `delegation.expires_at` if present | REJECT `exceeds_person_consent` with counter-offer |
+| O-10 | `connection_valid_until` within the maximum the person permits | REJECT `exceeds_person_consent` with counter-offer |
+| O-11 | If `delegation` is present, its scope, expiry and revocation conditions fit the person's IB delegation settings | REJECT `intervention_not_permitted` with counter-offer |
 
 ## 5.3 ACCEPT
 
@@ -271,6 +285,7 @@ The person's stop, termination or revocation, delegation expiry, and deletion re
 | Revoke permission | `authority_revoked` | `person_revoke` |
 | Terminate | `authority_revoked` | `person_terminate` |
 | Delegation expired | `authority_revoked` | `delegation_expired` |
+| Delegation revocation condition met | `authority_revoked` | `delegation_revoked` |
 | Deletion request | `authority_revoked` | `deletion_request` (with `life_profile.deletions[]`) |
 | Core inconsistency | `validation_fail` | as in Core |
 
@@ -287,30 +302,32 @@ The person's stop, termination or revocation, delegation expiry, and deletion re
 
 | Value | Defined by | Meaning |
 |---|---|---|
-| Upper limit | LCS | Maximum LCS allows. L0 facts = D3 / L1 values = D2 / L2 judgments = D1 / L3 connection & delegation = D0 |
-| Default | This profile | Initial value the PSA may accept for a new connection without the person's specific consent. Never exceeds the upper limit |
+| Upper limit | LCS | The upper limit LCS returns for that connection, including any temporary per-connection raise by the person. Without a raise, the default upper limit (L0 facts = D3 / L1 values = D2 / L2 judgments = D1 / L3 connection & delegation = D0) |
+| Default | This profile | Initial value the PSA may accept for a new connection without the person's specific consent. Never exceeds the default upper limit |
 | Agreed value | ACCEPT | Value fixed at ACCEPT (the value in the signed `declaration`) |
 
-## 6.2 Proposed defaults [Proposal — not decided]
+## 6.2 Defaults
 
-The draft (Option A) is one stage below the upper limit. L3's upper limit is D0 and cannot go lower, so it stays D0.
+The disclosure-stage default is Option A (one stage below the default upper limit) [Decided]. L3's default upper limit is D0 and cannot go lower, so it stays D0.
 
-| Layer | LCS upper limit | Default Option A (draft) | Default Option B (more conservative) |
-|---|---|---|---|
-| L0 facts | D3 | **D2** | D1 |
-| L1 values | D2 | **D1** | D0 |
-| L2 judgments | D1 | **D0** | D0 |
-| L3 connection & delegation | D0 | **D0** | D0 |
+| Layer | Default upper limit (LCS) | Default [Decided: Option A] |
+|---|---|---|
+| L0 facts | D3 | **D2** |
+| L1 values | D2 | **D1** |
+| L2 judgments | D1 | **D0** |
+| L3 connection & delegation | D0 | **D0** |
 
-Other proposed defaults:
+The more conservative Option B (L0 = D1 / L1 = D0 / L2 = D0) is not adopted: L1 (values) would be undisclosed by default, making value-aligned proposals nearly impossible.
 
-| Item | Default [Proposal — not decided] |
-|---|---|
-| Intervention level | Not above the person's IB setting (IB default is level 2) |
-| Activation | `on_request` only (`spontaneous` not accepted) |
-| Retention | `none` or `session` |
-| Connection validity | Within 7 days of acceptance (extend via a new handshake) |
-| Secondary use | Accept only `declared = false` |
+Other defaults:
+
+| Item | Default | Status |
+|---|---|---|
+| Intervention level | Not above the person's IB setting (IB default is level 2) | Follows IB default |
+| Activation | `on_request`, plus `permission_event` for permission events the person registered in IB (IB's allowed_event; empty initially). `spontaneous` not accepted | Follows IB default |
+| Retention | `none` or `session` | [Proposal] |
+| Connection validity | Within 7 days of acceptance (extend via a new handshake) | [Decided] |
+| Secondary use | Accept only `declared = false` | [Proposal] |
 
 ## 6.3 Effective disclosure stage
 
@@ -320,6 +337,8 @@ effective stage = min(LCS upper limit, CCP agreed value, person's consent)
 
 - For a new connection without the person's specific consent, the agreed value the PSA can accept is ≤ the default (O-5).
 - With the person's specific consent, the PSA may accept a value above the default and ≤ the upper limit. Never above the upper limit.
+- The upper limit is not a fixed value. If the person has temporarily raised it for a connection, the PSA uses the upper limit LCS returns for that connection at OFFER time (O-4). Whether, what and how long a raise applies is defined by LCS; this profile does not change it.
+- After a temporary raise ends, the upper limit LCS returns at disclosure time may be lower than the agreed value. The formula still applies: the lower value is effective (Chapter 7).
 - When stages cannot be ordered on a single line (they differ per item), apply the formula per item in `requested_disclosure[].items[]` and also confirm per-item permission.
 - The agreed value is the value at the CCP gate. The stage actually disclosed is decided again by LCS at disclosure time (Chapter 7).
 
@@ -336,7 +355,7 @@ A past ACCEPT does not remain a basis for execution. For every request from the 
 | ID | Check | On failure |
 |---|---|---|
 | G-1 | A `grant` exists for the request's `handshake_id` and `state = active` | Deny; record `gate_denied` |
-| G-2 | now < `grant.valid_until` (and `delegation.expires_at`, if any) | Set `grant.state = expired`; deny |
+| G-2 | now < `grant.valid_until` (and `delegation.expires_at`, if any). For requests relying on delegation, no `delegation.revoke_on` condition has been met | Set `grant.state = expired`; deny (if a revocation condition is met, the delegation lapses; deny) |
 | G-3 | Request purpose equals the agreed `purpose.id` | Deny |
 | G-4 | Requested layer/item/stage ≤ agreed value | Deny (whether to disclose at a lower stage is LCS's decision) |
 | G-5 | Requested intervention level/activation ≤ agreed value | Deny |
@@ -385,6 +404,7 @@ Facts recorded in L3 carry `assertion_source`:
 | Person revokes | `grant.state = revoked`. Stop immediately and request deletion | REVERSE `person_revoke` + deletion request |
 | Person terminates | `grant.state = terminated`. Same as above | REVERSE `person_terminate` + deletion request |
 | Delegation expires | Authority lapses (denied at G-2) | REVERSE `delegation_expired` |
+| Delegation revocation condition met | Delegation lapses (denied at G-2) | REVERSE `delegation_revoked` |
 | Connection validity expires | `grant.state = expired` (G-2) | Not required (REVERSE optional) |
 
 - State is reflected immediately on the person's side, without waiting for notification delivery.
@@ -409,7 +429,7 @@ Facts about connection, disclosure, proposals, rejections and REVERSE are record
 | Gate denied | same | requester | — | `grant` | time denied | ID of failed check |
 | Deletion state change | same | same | — | — | time of change | `deletion.status`, `assertion_source` |
 
-L3 content is never disclosed externally (LCS upper limit D0).
+L3 content is never disclosed externally (LCS default upper limit D0).
 
 ---
 
@@ -426,20 +446,21 @@ L3 content is never disclosed externally (LCS upper limit D0).
 | 4.1 Intervention level | `declaration.requested_intervention_level` + consistency with `intent` / `decision_authority` (4.3) | Extension + Core constraint |
 | 4.1 Retention | `declaration.retention` | Extension |
 | 4.1 Secondary use | `declaration.secondary_use`, `purpose_limitation_pledge` | Extension |
+| IB "what the AI does not do" (added in LVC review) | `declaration.ib_conduct_pledge` [Proposal] (4.5) | Extension |
 | 4.1 Reject on missing declaration | O-1, REJECT `declaration_missing` | Extension (Core REJECT) |
 | 4.2 Default | 6.2 [Proposal] | Profile |
 | 4.2 Distinguish upper/default/agreed | 6.1, `grant.agreed` | Profile |
 | 4.2 Effective value | 6.3, O-4, O-5, G-4 | Profile |
 | 4.2 D1 is disclosure | 6.4 | Profile |
 | 4.3 HELLO | Core HELLO + H-1–H-3 | Core + profile checks |
-| 4.3 OFFER | Core OFFER + `life_profile.declaration` + O-1–O-10 | Core + extension |
+| 4.3 OFFER | Core OFFER + `life_profile.declaration` + O-1–O-11 | Core + extension |
 | 4.3 ACCEPT (narrowed) | REJECT + `counter_offer` → re-OFFER in new handshake → ACCEPT (5.4) | Core unchanged (proposal CP-1) |
 | 4.3 REJECT | Core REJECT + `life_reject` | Core + extension |
 | 4.3 REVERSE | `authority_revoked` + reason code in `payload.reason` | Core |
 | 4.3 Hold | REJECT `consent_on_hold` or no ACCEPT | Core unchanged (proposal CP-2) |
 | 4.4 Immediate stop | Immediate `grant.state` update + G-1 | Profile |
 | 4.4 Past ACCEPT does not persist | Gate in Chapter 7 | Profile |
-| 4.4 Delegation expiry | `delegation.expires_at`, `grant.valid_until`, G-2 | Extension |
+| 4.4 Delegation expiry | `delegation.expires_at` / `delegation.revoke_on`, `grant.valid_until`, G-2 | Extension |
 | 4.4 authority_revoked → AI→Human | Core REVERSE mandatory check | Core |
 | 4.5 Declaration vs fulfilment | `assertion_source` | Extension |
 | 4.5 Deletion states | `deletion.status` | Extension |
@@ -452,7 +473,9 @@ L3 content is never disclosed externally (LCS upper limit D0).
 | Person | Human in `decision_authority` | Not a CCP participant |
 | Person-side agent | `participants.receiver` | |
 | External AI | `participants.initiator` | |
-| Upper limit | (not in CCP; refers to LCS) | |
+| Upper limit | (not in CCP; the value LCS returns for the connection) | Includes temporary per-connection raises |
+| Default upper limit | Fixed values in 6.1 (copied from LCS) | |
+| Delegation | `declaration.delegation` (scope, expiry, revocation conditions) | Levels 4 and 5. `Human→AI` only at level 5 |
 | Default | This profile, 6.2 | |
 | Agreed value | ACCEPTed `life_profile.declaration` = `grant.agreed` | |
 | Stop / revoke / terminate | REVERSE `authority_revoked` + reason code | |
@@ -468,8 +491,8 @@ Premise: the person permits purpose `finance.rebalance_proposal`; no specific co
 | Step | Message | Checks | Result |
 |---|---|---|---|
 | 1 | HELLO (`world.id = lvc.life`) | Core HELLO, H-1–H-3 | Pass |
-| 2 | OFFER: L0 = D3, level 3, `retention = session`, no secondary use | O-4 pass (upper D3), O-5 fail (exceeds default D2, no consent) | REJECT `exceeds_person_consent`, `counter_offer`: L0 = D2 |
-| 3 | New HELLO / OFFER: L0 = D2, with `previous_handshake_id` | O-1–O-10 | Pass |
+| 2 | OFFER: L0 = D3, level 3, `retention = session`, no secondary use | O-4 pass (default upper limit D3, no raise), O-5 fail (exceeds default D2, no consent) | REJECT `exceeds_person_consent`, `counter_offer`: L0 = D2 |
+| 3 | New HELLO / OFFER: L0 = D2, with `previous_handshake_id` | O-1–O-11 | Pass |
 | 4 | ACCEPT | Core ACCEPT | `grant.state = active`, recorded in L3 |
 | 5 | External AI queries balance history | G-1–G-6 → LCS → IB | Disclosed at D2, proposal received, recorded in L3 |
 | 6 | Person revokes | `grant.state = revoked` (immediate) | REVERSE `authority_revoked` / `person_revoke` + deletion request (`requested`) |
@@ -517,10 +540,10 @@ For reference (an observed Core inconsistency; not changed): in `specs/handshake
 
 | ID | Issue |
 |---|---|
-| U-1 | Concrete defaults (disclosure stages in 6.2, retention, connection validity). Option A presented as draft |
+| U-1 | Default retention. (Disclosure-stage default = Option A and connection validity = 7 days are decided) |
 | U-2 | Method for verifying deletion completion (shared open issue with LVC) and the deadline for `no_response` |
 | U-3 | Taxonomy of purposes (`purpose.id`) and how matching with the person's permission is decided |
-| U-4 | Value of `world.id` (`"lvc.life"` is a proposal) |
+| U-4 | (Resolved) `world.id` decided as `"lvc.life"` |
 | U-5 | IB-side interface that detects "cannot choose" situations and tells the PSA to hold |
 | U-6 | Item ID scheme for per-item permissions (LCS side) |
 | U-7 | Format in which the PSA receives the person's permissions (purpose, layer, stage, retention, connection period) from LCS / IB |
@@ -529,6 +552,7 @@ For reference (an observed Core inconsistency; not changed): in `specs/handshake
 | U-10 | Required strength of external AI identity verification (whether `trust.evidence` is mandatory, whether `attested` is required) |
 | U-11 | Handling of onward transfer to third parties by the external AI. Treated here as a category of secondary use; REJECT proposed if declared |
 | U-12 | Whether expressing level-5 delegation via Core's `Human→AI` transition is appropriate (DA-3) |
+| U-13 | How the PSA handles consent by a proxy (IB Chapter 7) when the person cannot decide (to what extent proxy consent counts as the person's consent, how it is recorded) |
 
 ---
 
@@ -541,6 +565,13 @@ No LVC documents were edited for this profile. Points the LVC side may want to c
 3. An interface is needed for conveying IB Chapter 6 "hold" to the PSA (5.5, U-5).
 4. Connection validity (`connection_valid_until`) is a concept newly introduced by this profile. Please confirm its relation to LVC's "delegation expiry" (same thing, or held separately).
 
+## 14.1 Response from LVC (2026-10-28)
+
+1. LVC documents do not assume those mappings. LVC supports the profile's decision; no LVC change needed.
+2. The L3 record format is taken over by LVC and added to LCS open issues (U-8 handled on the LVC side).
+3. The interface for conveying hold to the PSA is taken over by LVC and added to IB open issues (U-5 handled on the LVC side).
+4. Connection validity (the period during which the CCP agreement is valid) and delegation expiry (the period during which judgment is entrusted) are held separately. `grant.valid_until = min(both)` stays. LVC will add a sentence stating "connection validity is defined by the CCP Life Profile".
+
 ---
 
 # Appendix A. Excerpt of LVC Definitions (reference only)
@@ -551,11 +582,24 @@ This appendix copies LVC definitions for reference; the authoritative text is in
 
 **LCS disclosure stages**: D0 none / D1 existence only / D2 abstracted (abstracted locally) / D3 summary (summary confirmed by the person) / D4 original
 
-**LCS upper limits**: L0 = D3 / L1 = D2 / L2 = D1 / L3 = D0
+**LCS default upper limits**: L0 = D3 / L1 = D2 / L2 = D1 / L3 = D0 (the person can raise them temporarily per connection)
 
 **IB intervention levels** (default level 2; raised only by the person): 0 none / 1 observe / 2 present / 3 propose / 4 execute with confirmation / 5 delegated execution
 
-**IB activation triggers**: on request / permission event / spontaneous (spontaneous prohibited by default)
+**IB activation triggers**: on request / permission event / spontaneous (defaults: on request and permission event; permission events are empty initially and only those the person registers; spontaneous prohibited by default)
+
+**IB delegation**: entrusting with scope, expiry and revocation conditions. Level-4 delegation is possible (IB example DLG-001)
+
+**IB Chapter 5 "What the AI does not do"**: six items (authoritative text in IB)
+
+---
+
+# Change History
+
+| Version | Date | Changes |
+|---|---|---|
+| 0.1 | 2026-10-28 | Initial draft |
+| 0.2 | 2026-10-28 | Maintainer decisions (disclosure default = Option A, connection validity = 7 days, `world.id = "lvc.life"`). LVC review: permission events added to activation default; delegation declarable at levels 4 and 5 with `revoke_on`; upper limit redefined as "the upper limit LCS returns for the connection"; `ib_conduct_pledge` [Proposal] added; U-13 added; LVC responses recorded in 14.1 |
 
 ---
 

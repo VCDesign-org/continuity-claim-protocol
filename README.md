@@ -214,7 +214,7 @@ Order to read first:
 
 ### Profiles (application layers on top of Core)
 
-- **docs/en/life-profile.md** (Draft 0.1)
+- **docs/en/life-profile.md** (Draft 0.2)
   → CCP Life Profile: applies CCP to connections between a person and external AIs. Extension schema: `schemas/life-profile.schema.yaml`. Does not change Core semantics.
 
 ---

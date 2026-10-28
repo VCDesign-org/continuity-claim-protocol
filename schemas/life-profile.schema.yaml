@@ -1,6 +1,6 @@
 $schema: "https://yaml-schema.org/draft-01"
 title: "CCP Life Profile Extension Schema"
-version: "0.1"
+version: "0.2"
 status: "Draft"
 core_version: "2.1"
 audience: "AI Agents / Implementers"
@@ -46,7 +46,9 @@ definitions:
   activation_trigger:
     type: string
     enum: ["on_request", "permission_event", "spontaneous"]
-    description: "IB の起動条件。要求時 / 許可イベント / 自発（既定では禁止）"
+    description: >
+      IB の起動条件。要求時 / 許可イベント / 自発。
+      IB の既定は要求時と許可イベント（許可イベントは本人が IB に登録したものだけ）。自発は既定で禁止
 
   ##########################################################
   # 4.1 外部 AI の宣言（OFFER で提示する）
@@ -61,6 +63,7 @@ definitions:
       - retention
       - secondary_use
       - purpose_limitation_pledge
+      - ib_conduct_pledge
       - connection_valid_until
     properties:
 
@@ -105,6 +108,13 @@ definitions:
         minItems: 1
         items: { $ref: "#/definitions/activation_trigger" }
 
+      activation_events:
+        type: array
+        description: >
+          activation に permission_event を含む場合に必須。起動のきっかけとして求める許可イベント。
+          本人が IB に登録した許可イベント（IB の allowed_event）に含まれるものだけ受諾される
+        items: { type: string }
+
       retention:
         type: object
         required: [mode]
@@ -142,6 +152,13 @@ definitions:
         const: true
         description: "宣言した目的以外にデータを使わないことの宣言。true 以外は宣言の欠落として扱う"
 
+      ib_conduct_pledge:
+        type: boolean
+        const: true
+        description: >
+          ［提案］IB 5 章「AI が行わないこと」の 6 項目を守ることの宣言。
+          項目の内容は IB を正本とする。true 以外は宣言の欠落として扱う
+
       connection_valid_until:
         type: string
         description: >
@@ -150,11 +167,18 @@ definitions:
 
       delegation:
         type: object
-        description: "介入レベル 5 を求める場合のみ。委譲の範囲と期限"
-        required: [scope, expires_at]
+        description: >
+          委譲の範囲・期限・取り消し条件。介入レベル 4 と 5 で宣言でき、レベル 5 では必須。
+          Core の "Human→AI" 遷移を含めてよいのはレベル 5 のみ（本文 DA-3）
+        required: [scope, expires_at, revoke_on]
         properties:
           scope:      { type: string }
           expires_at: { type: string, description: "ISO 8601" }
+          revoke_on:
+            type: array
+            minItems: 1
+            description: "取り消し条件（IB の revoke_on）。成立した時点で委譲は失効する"
+            items: { type: string }
 
   ##########################################################
   # ACCEPT で確定する合意値（grant）
@@ -226,7 +250,7 @@ definitions:
         enum:
           - "declaration_missing"        # 宣言の欠落
           - "purpose_mismatch"           # 目的が本人の許可と一致しない
-          - "exceeds_upper_limit"        # LCS の上限を超える開示要求
+          - "exceeds_upper_limit"        # LCS がこの接続について返す上限を超える開示要求
           - "exceeds_person_consent"     # 本人の許可を超える要求
           - "intervention_not_permitted" # IB 設定を超える介入レベル・起動条件
           - "retention_not_permitted"    # 保持期間が本人の許可を超える
@@ -250,6 +274,7 @@ definitions:
       - "person_revoke"       # 許可の取消（type = authority_revoked）
       - "person_terminate"    # 終結（type = authority_revoked）
       - "delegation_expired"  # 委譲の期限切れ（type = authority_revoked）
+      - "delegation_revoked"  # 委譲の取り消し条件の成立（type = authority_revoked）
       - "deletion_request"    # 削除要求（type = authority_revoked、life_profile.deletions を添える）
     description: >
       Core の payload.reason は自由記述の文字列であり、本列挙はその値の取り方を狭めるだけで
@@ -327,7 +352,7 @@ properties:
         const: "ccp-life"
       version:
         type: string
-        description: "本プロファイルのバージョン（現在 0.1）"
+        description: "本プロファイルのバージョン（現在 0.2）"
       declaration:
         $ref: "#/definitions/declaration"
       previous_handshake_id:
