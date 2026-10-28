@@ -49,7 +49,7 @@ handshake_spec:
   schema_definition:
     $schema: "https://yaml-schema.org/draft-01"
     title: "CCP Minimal Handshake Schema"
-    version: "2.0"
+    version: "2.1"
     type: object
     required:
       - handshake_meta
