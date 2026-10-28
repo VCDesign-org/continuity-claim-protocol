@@ -1,5 +1,5 @@
 # CCP Life Profile
-Version: 0.2
+Version: 0.3
 Status: Draft (pending human review)
 Core: CCP Handshake 2.1
 Audience: AI Agents / Implementers / LVC Maintainers
@@ -13,7 +13,7 @@ The Japanese version (`docs/ja/life-profile.md`) is the primary text; this Engli
 - The meaning of Core's states, mandatory checks and schema (`specs/handshake.yaml`, `schemas/handshake.schema.yaml`, `docs/en/handshake.protocol.md`, `docs/en/handshake.security.md`) is not changed. This profile is an application layer on top of Core.
 - Items that cannot be achieved, or would be better achieved, by changing Core are listed separately as "Core change proposals" in Chapter 12.
 - Values marked **[Proposal]** are not decisions. They are finalized by agreement with LVC.
-- Values marked **[Decided]** were decided by the maintainer on 2026-10-28 (see Change History).
+- Values marked **[Decided]** were decided by the maintainer on 2026-10-28 (see Change History). As of 0.3, no value in this document remains a [Proposal].
 
 > An AI's request is not, by itself, the person's permission.
 > The person's sovereignty must not depend on the internal goodwill of an AI.
@@ -92,7 +92,7 @@ A top-level `life_profile` object is added to the Core handshake document. Core'
 ```yaml
 life_profile:
   profile: "ccp-life"
-  version: "0.2"
+  version: "0.3"
   declaration: { ... }          # Chapter 4
   previous_handshake_id: "..."  # only when re-offering along a counter-offer
 ```
@@ -108,7 +108,7 @@ life_profile:
 | Core field | Value in profile | Reason |
 |---|---|---|
 | `world.id` | `"lvc.life"` [Decided] | Shares in HELLO that this is an LVC application |
-| `world.version` | profile version (`"0.2"`) | |
+| `world.version` | profile version (`"0.3"`) | |
 | `trust.validation_level` | `semantic` or higher | Because the person's context is involved, semantic or higher is required regardless of intent (narrower than Core's minimum) |
 | `trust.scope` | `"local_session"` | Core's scope is the extent of trust and differs in meaning from LCS layers. Layers are expressed by the extension |
 | `resolution_policy.delta_transfer.redaction` | `"required"` | The person's context must not leak into Δ (unresolved area). Disclosure goes through the disclosure gate (Chapter 7), not Δ |
@@ -132,7 +132,7 @@ life_profile:
 | Retention | `life_profile.declaration.retention` | Extension |
 | Secondary use | `life_profile.declaration.secondary_use` | Extension |
 | Pledge not to use beyond purpose | `life_profile.declaration.purpose_limitation_pledge = true` | Extension |
-| Pledge to observe IB "what the AI does not do" | `life_profile.declaration.ib_conduct_pledge = true` [Proposal] (4.5) | Extension |
+| Pledge to observe IB "what the AI does not do" | `life_profile.declaration.ib_conduct_pledge = true` [Decided, required] (4.5) | Extension |
 | Connection validity | `life_profile.declaration.connection_valid_until` | Extension |
 | Delegation (levels 4 and 5; required at level 5) | `life_profile.declaration.delegation` (scope, expiry, revocation conditions `revoke_on`) | Extension |
 
@@ -149,8 +149,8 @@ The PSA REJECTs (reason `declaration_missing`) if any of the following holds:
 - `life_profile` is absent or not included in `signed_fields`
 - any required item of `declaration` is absent
 - `purpose_limitation_pledge` is not `true`
-- `ib_conduct_pledge` is not `true` [Proposal]
-- `activation` includes `permission_event` but `activation_events` is absent
+- `ib_conduct_pledge` is not `true`
+- `activation` includes `allowed_event` but `activation_events` is absent
 - `retention.mode = "duration"` without `duration`
 - `requested_intervention_level = 5` without `delegation`
 
@@ -183,7 +183,7 @@ decision_authority:
   allowed_transitions: ["AI→Human"]
 life_profile:
   profile: "ccp-life"
-  version: "0.2"
+  version: "0.3"
   declaration:
     purpose:
       id: "finance.rebalance_proposal"
@@ -202,7 +202,7 @@ life_profile:
     connection_valid_until: "2026-11-04T00:00:00Z"
 ```
 
-## 4.5 Pledge to observe IB "what the AI does not do" [Proposal]
+## 4.5 Pledge to observe IB "what the AI does not do" [Decided, required]
 
 LVC IB's scope includes external AIs connecting to the person's context. With `ib_conduct_pledge = true`, the external AI declares that it observes the six items of IB Chapter 5, "What the AI does not do" (e.g. no steering of choices, no persuasion by manipulating future emotions).
 
@@ -238,9 +238,9 @@ In addition to Core's content, the external AI presents `life_profile.declaratio
 | O-3 | Purpose matches a purpose the person has permitted | REJECT `purpose_mismatch` |
 | O-4 | Disclosure stage of every layer/item ≤ the upper limit LCS returns for this connection (6.1) | REJECT `exceeds_upper_limit` with counter-offer |
 | O-5 | Disclosure stage of every layer/item ≤ the person's consent (or ≤ default without consent; Chapter 6) | REJECT `exceeds_person_consent` with counter-offer |
-| O-6 | Intervention level ≤ the person's IB setting; activation within IB permission (`permission_event` only if every entry in `activation_events` is a permission event the person registered in IB; `spontaneous` only if the person permitted it) | REJECT `intervention_not_permitted` with counter-offer |
+| O-6 | Intervention level ≤ the person's IB setting; activation within IB permission (`allowed_event` only if every entry in `activation_events` is a permission event the person registered in IB; `spontaneous` only if the person permitted it) | REJECT `intervention_not_permitted` with counter-offer |
 | O-7 | Retention within the person's permission; `delete_on_revoke = true` | REJECT `retention_not_permitted` with counter-offer |
-| O-8 | `secondary_use.declared = false` [Proposal] | REJECT `secondary_use_declared` |
+| O-8 | `secondary_use.declared = false` [Decided] | REJECT `secondary_use_declared` |
 | O-9 | Intervention level consistent with `intent` / `decision_authority` (4.3) | REJECT `core_check_failed` |
 | O-10 | `connection_valid_until` within the maximum the person permits | REJECT `exceeds_person_consent` with counter-offer |
 | O-11 | If `delegation` is present, its scope, expiry and revocation conditions fit the person's IB delegation settings | REJECT `intervention_not_permitted` with counter-offer |
@@ -324,10 +324,10 @@ Other defaults:
 | Item | Default | Status |
 |---|---|---|
 | Intervention level | Not above the person's IB setting (IB default is level 2) | Follows IB default |
-| Activation | `on_request`, plus `permission_event` for permission events the person registered in IB (IB's allowed_event; empty initially). `spontaneous` not accepted | Follows IB default |
-| Retention | `none` or `session` | [Proposal] |
+| Activation | `on_request` and `allowed_event` (only permission events the person registered in IB; empty initially). `spontaneous` not accepted | Follows IB default |
+| Retention | `none` or `session` | [Decided] |
 | Connection validity | Within 7 days of acceptance (extend via a new handshake) | [Decided] |
-| Secondary use | Accept only `declared = false` | [Proposal] |
+| Secondary use | Accept only `declared = false` (REJECT if declared) | [Decided] |
 
 ## 6.3 Effective disclosure stage
 
@@ -409,7 +409,7 @@ Facts recorded in L3 carry `assertion_source`:
 
 - State is reflected immediately on the person's side, without waiting for notification delivery.
 - Permissions obtained before a stop are denied at the re-check immediately before execution (Chapter 7).
-- Resuming after a stop requires a new handshake [Proposal]. Whether `stopped` may return to `active` is undecided (Chapter 13, U-9).
+- Resuming after a stop requires a new handshake [Decided]. A `stopped` `grant` is never returned to `active`.
 
 ---
 
@@ -446,9 +446,9 @@ L3 content is never disclosed externally (LCS default upper limit D0).
 | 4.1 Intervention level | `declaration.requested_intervention_level` + consistency with `intent` / `decision_authority` (4.3) | Extension + Core constraint |
 | 4.1 Retention | `declaration.retention` | Extension |
 | 4.1 Secondary use | `declaration.secondary_use`, `purpose_limitation_pledge` | Extension |
-| IB "what the AI does not do" (added in LVC review) | `declaration.ib_conduct_pledge` [Proposal] (4.5) | Extension |
+| IB "what the AI does not do" (added in LVC review) | `declaration.ib_conduct_pledge` [Decided, required] (4.5) | Extension |
 | 4.1 Reject on missing declaration | O-1, REJECT `declaration_missing` | Extension (Core REJECT) |
-| 4.2 Default | 6.2 [Proposal] | Profile |
+| 4.2 Default | 6.2 [Decided] | Profile |
 | 4.2 Distinguish upper/default/agreed | 6.1, `grant.agreed` | Profile |
 | 4.2 Effective value | 6.3, O-4, O-5, G-4 | Profile |
 | 4.2 D1 is disclosure | 6.4 | Profile |
@@ -540,19 +540,19 @@ For reference (an observed Core inconsistency; not changed): in `specs/handshake
 
 | ID | Issue |
 |---|---|
-| U-1 | Default retention. (Disclosure-stage default = Option A and connection validity = 7 days are decided) |
+| U-1 | (Resolved) All defaults decided: disclosure stage = Option A, connection validity = 7 days, retention = `none` or `session` |
 | U-2 | Method for verifying deletion completion (shared open issue with LVC) and the deadline for `no_response` |
 | U-3 | Taxonomy of purposes (`purpose.id`) and how matching with the person's permission is decided |
 | U-4 | (Resolved) `world.id` decided as `"lvc.life"` |
-| U-5 | IB-side interface that detects "cannot choose" situations and tells the PSA to hold |
+| U-5 | IB-side interface that detects "cannot choose" situations and tells the PSA to hold (taken over as an LVC open issue) |
 | U-6 | Item ID scheme for per-item permissions (LCS side) |
 | U-7 | Format in which the PSA receives the person's permissions (purpose, layer, stage, retention, connection period) from LCS / IB |
-| U-8 | L3 record format and mapping to the field names of `life_record` |
-| U-9 | Whether resuming from `stopped` to `active` is allowed (this document proposes a new handshake) |
+| U-8 | L3 record format and mapping to the field names of `life_record` (taken over as an LVC open issue) |
+| U-9 | (Resolved) Resuming after a stop uses a new handshake; `stopped` never returns to `active` |
 | U-10 | Required strength of external AI identity verification (whether `trust.evidence` is mandatory, whether `attested` is required) |
-| U-11 | Handling of onward transfer to third parties by the external AI. Treated here as a category of secondary use; REJECT proposed if declared |
+| U-11 | Whether onward transfer to third parties by the external AI may be treated as a category of secondary use. If so, it is REJECTed under the (decided) secondary-use rule |
 | U-12 | Whether expressing level-5 delegation via Core's `Human→AI` transition is appropriate (DA-3) |
-| U-13 | How the PSA handles consent by a proxy (IB Chapter 7) when the person cannot decide (to what extent proxy consent counts as the person's consent, how it is recorded) |
+| U-13 | How the PSA handles consent by a proxy (IB Chapter 7) when the person cannot decide (to what extent proxy consent counts as the person's consent, how it is recorded) (taken over as an LVC open issue) |
 
 ---
 
@@ -571,6 +571,8 @@ No LVC documents were edited for this profile. Points the LVC side may want to c
 2. The L3 record format is taken over by LVC and added to LCS open issues (U-8 handled on the LVC side).
 3. The interface for conveying hold to the PSA is taken over by LVC and added to IB open issues (U-5 handled on the LVC side).
 4. Connection validity (the period during which the CCP agreement is valid) and delegation expiry (the period during which judgment is entrusted) are held separately. `grant.valid_until = min(both)` stays. LVC will add a sentence stating "connection validity is defined by the CCP Life Profile".
+
+LVC has since stated in IB that connection validity and delegation expiry are held separately, and added U-5, U-13 and the L3 record format (U-8) to LVC open issues.
 
 ---
 
@@ -600,6 +602,7 @@ This appendix copies LVC definitions for reference; the authoritative text is in
 |---|---|---|
 | 0.1 | 2026-10-28 | Initial draft |
 | 0.2 | 2026-10-28 | Maintainer decisions (disclosure default = Option A, connection validity = 7 days, `world.id = "lvc.life"`). LVC review: permission events added to activation default; delegation declarable at levels 4 and 5 with `revoke_on`; upper limit redefined as "the upper limit LCS returns for the connection"; `ib_conduct_pledge` [Proposal] added; U-13 added; LVC responses recorded in 14.1 |
+| 0.3 | 2026-10-28 | Remaining proposals decided (default retention = `none` or `session`; REJECT counterparts declaring secondary use; resume after stop via new handshake; `ib_conduct_pledge` required). Activation value `permission_event` renamed to `allowed_event` to match LVC IB. U-1 and U-9 resolved |
 
 ---
 
